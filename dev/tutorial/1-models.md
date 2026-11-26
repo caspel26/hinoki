@@ -18,7 +18,7 @@ from hinoki.orm import Model, field, pk
 class Member(Model):
     id: UUID = pk(default_factory=uuid4)
     name: str = field(max_length=80)
-    token: str = field(unique=True)
+    token_hash: str = field(unique=True)  # SHA-256 hex digest, never the token
 ```
 
 The tasks app belongs to a member through a foreign key:

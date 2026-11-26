@@ -249,7 +249,7 @@
           <h1 id="toolchain-and-ci">Toolchain and CI<a class="headerlink" href="#toolchain-and-ci" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:05:33 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:00 UTC">November 25, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -294,7 +294,7 @@ The PyO3 extension build backend requires maturin ≥ 1.16.0 (<code>[build-syste
 </tr>
 <tr>
 <td>Rust cognitive complexity</td>
-<td>Install <code>rust-code-analysis-cli</code> 0.0.25, then run <code>rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity &amp;&amp; python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity</code></td>
+<td>Install <code>rust-code-analysis-cli</code> 0.0.25, then run <code>mkdir -p /tmp/hinoki-rust-complexity &amp;&amp; rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity &amp;&amp; python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity</code></td>
 </tr>
 <tr>
 <td>Python tests + coverage</td>
@@ -365,6 +365,7 @@ test gate.</p>
 <li><strong>mypy --strict</strong> is the separate type check. No overlapping tools (no black, isort, flake8, pylint).</li>
 <li><strong>maturin</strong> is the build backend (<code>python-source = "python"</code>, extension <code>hinoki.core</code>); uv rebuilds when Rust sources change (<code>tool.uv.cache-keys</code>).</li>
 <li>Cognitive complexity is capped at 15 for every Python function and Rust function/closure. CI runs pinned <code>complexipy</code> and <code>rust-code-analysis-cli</code>; test and development code are included. Refactor over-budget functions instead of suppressing analyzer findings.</li>
+<li><strong>Unsafe Rust is gated.</strong> <code>kiso</code>, <code>hinoki-orm</code>, <code>hinoki-mail</code> and <code>hinoki-ratelimit</code> have <code>#![forbid(unsafe_code)]</code>; <code>hinoki-bindings</code> has <code>#![deny(unsafe_code)]</code>, so a new <code>unsafe</code> block fails the build until its function carries a narrow <code>#[allow(unsafe_code)]</code> and a <code>SAFETY:</code> comment stating why it is sound. Today there are three categories: the inherited-listener descriptor in <code>kiso.rs</code> (<code>OwnedFd::from_raw_fd</code>), the CPython FFI calls of the typed decoder, and two typed-decoder functions (<code>string</code> and <code>number</code>) that use <code>str::from_utf8_unchecked</code> on bytes checked to be ASCII.</li>
 <li>Dependency groups: <code>lint</code>, <code>typecheck</code>, <code>test</code>, aggregated by <code>dev</code>. Granian is both the optional runtime server extra and a test dependency for server integration coverage.</li>
 </ul>
 <h2 id="two-environments-two-responsibilities">Two environments, two responsibilities<a class="headerlink" href="#two-environments-two-responsibilities" title="Permanent link">&para;</a></h2>
@@ -458,7 +459,7 @@ test gate.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:05:33 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:00 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

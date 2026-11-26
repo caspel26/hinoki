@@ -501,7 +501,7 @@
           <h1 id="protect-endpoints-with-authentication-and-access">Protect endpoints with authentication and access<a class="headerlink" href="#protect-endpoints-with-authentication-and-access" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></span>
             <span>9 min read</span>
           </p>
           
@@ -511,9 +511,15 @@
 authentication provider (how a request proves who it is) with the permissions an
 action needs. Write both once and name the policy on each private action.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/security.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">BearerAuth</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">Permission</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">hash_token</span><span class="p">(</span><span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">token</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">BlogPermission</span><span class="p">(</span><span class="n">Permission</span><span class="p">):</span>
@@ -521,10 +527,10 @@ action needs. Write both once and name the policy on each private action.</p>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">TokenAuth</span><span class="p">(</span><span class="n">BearerAuth</span><span class="p">[</span><span class="n">User</span><span class="p">]):</span>
-<span class="w">    </span><span class="sd">"""Looks the token up in ``blog_users``; editors get the write scope."""</span>
+<span class="w">    </span><span class="sd">"""Looks the token's digest up in ``blog_users``; editors get the write scope."""</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_token</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Caller</span><span class="p">[</span><span class="n">User</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">user</span> <span class="o">=</span> <span class="k">await</span> <span class="n">User</span><span class="o">.</span><span class="n">aget_or_none</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">token</span><span class="p">)</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="k">await</span> <span class="n">User</span><span class="o">.</span><span class="n">aget_or_none</span><span class="p">(</span><span class="n">token_hash</span><span class="o">=</span><span class="n">hash_token</span><span class="p">(</span><span class="n">token</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">user</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span>
         <span class="n">scopes</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="n">BlogPermission</span><span class="o">.</span><span class="n">WRITE</span><span class="p">})</span> <span class="k">if</span> <span class="n">user</span><span class="o">.</span><span class="n">is_editor</span> <span class="k">else</span> <span class="nb">frozenset</span><span class="p">()</span>
@@ -803,7 +809,7 @@ that lacks the permission it is <code>403</code>.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

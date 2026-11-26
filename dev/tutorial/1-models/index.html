@@ -257,7 +257,7 @@
           <h1 id="1-models">1. Models<a class="headerlink" href="#1-models" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -278,7 +278,7 @@ app owns the table of people:</p>
 <span class="k">class</span><span class="w"> </span><span class="nc">Member</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)</span>
-    <span class="n">token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">token_hash</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># SHA-256 hex digest, never the token</span>
 </code></pre></div>
 <p>The tasks app belongs to a member through a foreign key:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/tasks/models.py</span>
@@ -395,7 +395,7 @@ migration of that app. Review its SQL, then apply it.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/1-models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -257,7 +257,7 @@
           <h1 id="6-run-and-test-it">6. Run and test it<a class="headerlink" href="#6-run-and-test-it" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -365,18 +365,19 @@ from the <code>server</code> settings (<a href="../../serving/">serving</a>).</p
 <h2 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h2>
 <p>Every task route needs a member's token, and the Tracker has no sign-up route.
 <code>hinoki manage seed</code> is a management command of the example
-(<code>tracker/commands.py</code>) that creates the member <code>Ada Demo</code> with the synthetic
-token <code>demo-member-token</code>:</p>
-<div class="language-text highlight"><pre><span></span><code>member 'Ada Demo' created; token 'demo-member-token'
+(<code>tracker/commands.py</code>) that creates the member <code>Ada Demo</code> and prints a random token once; the table stores only its SHA-256 digest, so the token cannot be shown again. Export it:</p>
+<div class="language-text highlight"><pre><span></span><code>member 'Ada Demo' created; token '&lt;random token&gt;' (shown once)
+</code></pre></div>
+<div class="language-sh highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">TOKEN</span><span class="o">=</span><span class="s1">'&lt;the printed token&gt;'</span>
 </code></pre></div>
 <p>With the server running, call the API from a second terminal:</p>
 <div class="language-sh highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/tasks<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer demo-member-token'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"title":"Write docs","priority":2}'</span>
 curl<span class="w"> </span><span class="s1">'http://127.0.0.1:8000/tasks?done=false&amp;priority=1,2&amp;search=docs&amp;ordering=-created_at'</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer demo-member-token'</span>
-curl<span class="w"> </span>http://127.0.0.1:8000/activity<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer demo-member-token'</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$TOKEN</span><span class="s2">"</span>
+curl<span class="w"> </span>http://127.0.0.1:8000/activity<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$TOKEN</span><span class="s2">"</span>
 </code></pre></div>
 <p>The first call answers <code>201</code> with the new task, the second a page with it that
 matches the filters, and the third the <code>created</code> line that the <code>activity</code> app
@@ -386,7 +387,7 @@ wrote. Without the header every one of them answers <code>401</code>.</p>
 <p>Completing the task answers <code>200</code>; completing it again is a <code>409</code>
 <code>task_already_done</code>, and deleting a completed task a <code>409</code>
 <code>done_tasks_are_kept</code>:</p>
-<div class="language-sh highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/tasks/&lt;id&gt;/complete<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer demo-member-token'</span>
+<div class="language-sh highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/tasks/&lt;id&gt;/complete<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$TOKEN</span><span class="s2">"</span>
 </code></pre></div>
 <h2 id="test-it">Test it<a class="headerlink" href="#test-it" title="Permanent link">&para;</a></h2>
 <p>The tests of the Tracker need no environment variable: the fixture in
@@ -401,8 +402,8 @@ builds the application with <code>create_app(settings)</code> around that file:<
     <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">ORDER</span><span class="p">:</span>
         <span class="k">await</span> <span class="n">migrator</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">APPS</span> <span class="o">/</span> <span class="n">name</span> <span class="o">/</span> <span class="s2">"migrations"</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">use_database</span><span class="p">(</span><span class="n">database</span><span class="p">):</span>
-        <span class="n">ann</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ann"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-token"</span><span class="p">)</span>
-        <span class="n">ben</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ben"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ben-token"</span><span class="p">)</span>
+        <span class="n">ann</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ann"</span><span class="p">,</span> <span class="n">token_hash</span><span class="o">=</span><span class="n">hash_token</span><span class="p">(</span><span class="s2">"ann-token"</span><span class="p">))</span>
+        <span class="n">ben</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ben"</span><span class="p">,</span> <span class="n">token_hash</span><span class="o">=</span><span class="n">hash_token</span><span class="p">(</span><span class="s2">"ben-token"</span><span class="p">))</span>
     <span class="n">database</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
     <span class="n">settings</span> <span class="o">=</span> <span class="n">TrackerSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">overrides</span><span class="o">=</span><span class="p">{</span><span class="s2">"database"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"url"</span><span class="p">:</span> <span class="n">url</span><span class="p">}})</span>
     <span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">create_app</span><span class="p">(</span><span class="n">settings</span><span class="p">))</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
@@ -416,7 +417,7 @@ the in-process client:</p>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create</span><span class="p">(</span><span class="n">world</span><span class="p">,</span> <span class="s2">"Ship"</span><span class="p">)</span>
     <span class="n">path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"/tasks/</span><span class="si">{</span><span class="n">task</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
-    <span class="n">ann</span> <span class="o">=</span> <span class="n">world</span><span class="o">.</span><span class="n">ann</span><span class="o">.</span><span class="n">token</span>
+    <span class="n">ann</span> <span class="o">=</span> <span class="s2">"ann-token"</span>
 
     <span class="n">done</span> <span class="o">=</span> <span class="k">await</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="n">ann</span><span class="p">)</span>
     <span class="n">again</span> <span class="o">=</span> <span class="k">await</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="n">ann</span><span class="p">)</span>
@@ -469,7 +470,7 @@ error it did not declare. For tests without <code>async</code>, use <code>SyncCl
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -501,7 +501,7 @@
           <h1 id="websockets">WebSockets<a class="headerlink" href="#websockets" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:13:03 UTC">November 26, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -636,11 +636,16 @@ origin the application's CORS policy lists by name. A CORS wildcard
 WebSocket handshake and does not hide the answer from other sites, so an open
 policy would let any site use a cookie-authenticated action. Anything else is
 refused with <code>403</code> before the upgrade. On Granian the check covers the same
-sources. Where the connection is known to be <code>https</code> (direct TLS, a trusted
-proxy reporting <code>https</code>, or <code>wss</code> on Granian), the same-host match also
-requires an <code>https://</code> origin. Granian handshakes also go through
+sources, through the same Rust predicate. The same-host match requires the
+scheme the connection has: <code>https://</code> where the connection is <code>https</code> (direct
+TLS, a trusted proxy reporting <code>https</code>, or <code>wss</code> on Granian) and <code>http://</code>
+otherwise, never both. Behind a proxy that terminates TLS without reporting the
+scheme, list the page's origin in <code>origins=</code> or the CORS origins. The host is
+compared exactly, in lower case, port included: no default port or trailing dot
+is folded in. Granian handshakes also go through
 <code>allowed_hosts</code> and trusted-proxy handling, and the route is matched on the raw
-path, as for HTTP requests.</p>
+path, as for HTTP requests. The same-host match trusts the <code>Host</code> header, so an app with
+WebSocket routes and <code>allowed_hosts</code> left at <code>*</code> refuses to start unless <code>debug</code> is on, which is for local development only; with <code>debug</code> on the app then accepts loopback <code>Host</code> names only (<code>localhost</code>, <code>*.localhost</code>, <code>127.0.0.0/8</code>, <code>[::1]</code>), any other <code>Host</code> receives <code>400</code>, and a handshake to it is refused. Name the served hosts with <code>allowed_hosts</code> to serve other names.</p>
 <h2 id="subprotocols">Subprotocols<a class="headerlink" href="#subprotocols" title="Permanent link">&para;</a></h2>
 <p><code>subprotocols=</code> names the subprotocols an action speaks, each an HTTP token
 (letters, digits and <code>!#$%&amp;'*+-.^_`|~</code>, so <code>chat.v1</code> but not <code>chat/v1</code>). The server picks the
@@ -685,7 +690,7 @@ action's:</p>
 </tr>
 <tr>
 <td><code>await socket.send_json(value)</code></td>
-<td>a JSON text message; with <code>reply=</code> on the route, validated against it</td>
+<td>a JSON text message; with <code>reply=</code> on the route, a <code>dict</code> is validated against it and an instance of a subclass of it is sent with the fields of <code>reply</code> only</td>
 </tr>
 <tr>
 <td><code>await socket.close(code=1000, reason="")</code></td>
@@ -820,7 +825,7 @@ origins and the handshake's security requirement. They are not listed under
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:13:03 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/websockets.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -501,8 +501,8 @@
           <h1 id="query-and-write-rows">Query and write rows<a class="headerlink" href="#query-and-write-rows" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
-            <span>11 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 22:51:38 UTC">November 25, 2026</span></span>
+            <span>12 min read</span>
           </p>
           
         </header>
@@ -552,7 +552,7 @@ does. <code>aproject</code> / <code>project</code>, <code>apaginate_as</code> / 
 <code>select_related</code>, and 1-level <code>prefetch_related</code> (reverse foreign keys and
 many-to-many) schemas directly from Rust rows, materializing Python <code>Schema</code>
 instances lazily from the owned rows if inspected and falling back transparently
-when hooks, computed fields, validators, or scoped prefetches are present.</p>
+when hooks, computed fields, validators, or scoped prefetches are present. A projected item passes <code>isinstance</code>, <code>dataclasses.is_dataclass</code>, <code>dataclasses.asdict</code>, <code>dataclasses.replace</code> and <code>copy.replace</code> as the <code>Schema</code> itself. <code>dataclasses.fields(type(item))</code> sees no fields (the class of a projected item is not the <code>Schema</code>); use <code>dataclasses.fields(item)</code>.</p>
 <h2 id="query-methods">Query methods<a class="headerlink" href="#query-methods" title="Permanent link">&para;</a></h2>
 <p>Every read and write entry point has an async form (<code>a*</code>) for <code>async def</code>
 handlers and a matching sync form for <code>def</code> handlers.</p>
@@ -1164,7 +1164,7 @@ declare a field named <code>returning</code>.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 22:51:38 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/queries.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

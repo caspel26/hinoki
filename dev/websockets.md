@@ -129,11 +129,16 @@ origin the application's CORS policy lists by name. A CORS wildcard
 WebSocket handshake and does not hide the answer from other sites, so an open
 policy would let any site use a cookie-authenticated action. Anything else is
 refused with `403` before the upgrade. On Granian the check covers the same
-sources. Where the connection is known to be `https` (direct TLS, a trusted
-proxy reporting `https`, or `wss` on Granian), the same-host match also
-requires an `https://` origin. Granian handshakes also go through
+sources, through the same Rust predicate. The same-host match requires the
+scheme the connection has: `https://` where the connection is `https` (direct
+TLS, a trusted proxy reporting `https`, or `wss` on Granian) and `http://`
+otherwise, never both. Behind a proxy that terminates TLS without reporting the
+scheme, list the page's origin in `origins=` or the CORS origins. The host is
+compared exactly, in lower case, port included: no default port or trailing dot
+is folded in. Granian handshakes also go through
 `allowed_hosts` and trusted-proxy handling, and the route is matched on the raw
-path, as for HTTP requests.
+path, as for HTTP requests. The same-host match trusts the `Host` header, so an app with
+WebSocket routes and `allowed_hosts` left at `*` refuses to start unless `debug` is on, which is for local development only; with `debug` on the app then accepts loopback `Host` names only (`localhost`, `*.localhost`, `127.0.0.0/8`, `[::1]`), any other `Host` receives `400`, and a handshake to it is refused. Name the served hosts with `allowed_hosts` to serve other names.
 
 ## Subprotocols
 
@@ -164,7 +169,7 @@ async def feed(socket: http.WebSocket) -> None:
 | `await socket.receive_bytes()` | the next binary message; a text one closes with `1003` |
 | `await socket.receive_json(schema=None)` | text parsed as JSON, then validated against the `Schema` given or the route's `message` |
 | `await socket.send_text(text)`, `send_bytes(data)` | queue a message, waiting while the outgoing queue is full |
-| `await socket.send_json(value)` | a JSON text message; with `reply=` on the route, validated against it |
+| `await socket.send_json(value)` | a JSON text message; with `reply=` on the route, a `dict` is validated against it and an instance of a subclass of it is sent with the fields of `reply` only |
 | `await socket.close(code=1000, reason="")` | close after the queued messages |
 | `async for message in socket` | each message, until the connection ends; with `message=` on the route, each is a validated `Schema` instance |
 

@@ -5300,7 +5300,8 @@ closes with 1007; JSON that does not validate closes with 1008.</p>
     <div class="doc doc-contents ">
 
         <p>Send <code>value</code> as a JSON text message. With <code>reply=</code> on the route a
-<code>dict</code> is validated into that <code>Schema</code> first.</p>
+<code>dict</code> is validated into that <code>Schema</code> first, and an instance of a
+subclass of it is sent with the fields of <code>reply</code> only.</p>
 
 
     </div>

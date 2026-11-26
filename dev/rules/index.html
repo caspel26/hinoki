@@ -501,7 +501,7 @@
           <h1 id="check-architecture-with-rules">Check architecture with rules<a class="headerlink" href="#check-architecture-with-rules" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -662,7 +662,7 @@ you say "public on purpose". The Blog example names its exceptions once:</p>
     <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="n">PUBLIC</span><span class="p">),</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="o">*</span><span class="n">PUBLIC</span><span class="p">,</span> <span class="o">*</span><span class="n">SIGNED_IN</span><span class="p">]),</span>
     <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"hinoki.ai.mcpapp.*"</span><span class="p">]),</span>
-    <span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"token"</span><span class="p">,</span> <span class="s2">"password_hash"</span><span class="p">),</span>
+    <span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"token_hash"</span><span class="p">,</span> <span class="s2">"password_hash"</span><span class="p">),</span>
     <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"blog.apps.blog.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"blog.apps.blog.api"</span><span class="p">),</span>
     <span class="c1"># ... and the other six rules, see the file</span>
 <span class="p">)</span>
@@ -968,7 +968,7 @@ same ID twice.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

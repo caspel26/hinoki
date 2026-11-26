@@ -22,7 +22,7 @@ The PyO3 extension build backend requires maturin ≥ 1.16.0 (`[build-system]` i
 | Format | `uv run --locked ruff format .` |
 | Types + typing fixtures | `uv run --locked mypy` (checks `python/hinoki`, `tests` and `examples`) |
 | Python cognitive complexity | `uv run --locked complexipy . --failed` |
-| Rust cognitive complexity | Install `rust-code-analysis-cli` 0.0.25, then run `rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity && python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity` |
+| Rust cognitive complexity | Install `rust-code-analysis-cli` 0.0.25, then run `mkdir -p /tmp/hinoki-rust-complexity && rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity && python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity` |
 | Python tests + coverage | `uv run --locked pytest --cov` (runs `tests` and the tests of `examples/notes`, `examples/tracker`, `examples/blog` and `examples/mailroom`) |
 | Only the real-server tests | `uv run --locked pytest -m runtime` |
 | Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` (see PyO3 setup below) |
@@ -94,6 +94,7 @@ test gate.
 * **mypy --strict** is the separate type check. No overlapping tools (no black, isort, flake8, pylint).
 * **maturin** is the build backend (`python-source = "python"`, extension `hinoki.core`); uv rebuilds when Rust sources change (`tool.uv.cache-keys`).
 * Cognitive complexity is capped at 15 for every Python function and Rust function/closure. CI runs pinned `complexipy` and `rust-code-analysis-cli`; test and development code are included. Refactor over-budget functions instead of suppressing analyzer findings.
+* **Unsafe Rust is gated.** `kiso`, `hinoki-orm`, `hinoki-mail` and `hinoki-ratelimit` have `#![forbid(unsafe_code)]`; `hinoki-bindings` has `#![deny(unsafe_code)]`, so a new `unsafe` block fails the build until its function carries a narrow `#[allow(unsafe_code)]` and a `SAFETY:` comment stating why it is sound. Today there are three categories: the inherited-listener descriptor in `kiso.rs` (`OwnedFd::from_raw_fd`), the CPython FFI calls of the typed decoder, and two typed-decoder functions (`string` and `number`) that use `str::from_utf8_unchecked` on bytes checked to be ASCII.
 * Dependency groups: `lint`, `typecheck`, `test`, aggregated by `dev`. Granian is both the optional runtime server extra and a test dependency for server integration coverage.
 
 ## Two environments, two responsibilities

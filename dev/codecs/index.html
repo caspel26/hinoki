@@ -501,8 +501,8 @@
           <h1 id="parsers-and-renderers">Parsers and renderers<a class="headerlink" href="#parsers-and-renderers" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 05:05:09 UTC">November 24, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:45:18 UTC">November 26, 2026</span></span>
+            <span>8 min read</span>
           </p>
           
         </header>
@@ -685,7 +685,7 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">prepare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>  <span class="c1"># Rust decodes, then reshape</span>
         <span class="k">return</span> <span class="n">rename_keys</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="n">data</span>
 </code></pre></div>
-<p>For a different format write a <code>Renderer</code> (<code>media_type</code>, <code>render(value, request) -&gt; bytes</code>) or a <code>Parser</code> (<code>media_type</code>, <code>parse(raw, content_type) -&gt; Parsed</code>); set <code>consumes_objects = True</code> on a renderer that can take <code>Schema</code> instances directly. Media types must be distinct within one list; a failing <code>parse</code> raises <code>InvalidBody(code, message)</code> (a 400 with that stable code).</p>
+<p>For a different format write a <code>Renderer</code> (<code>media_type</code>, <code>render(value, request) -&gt; bytes</code>) or a <code>Parser</code> (<code>media_type</code>, <code>parse(raw, content_type) -&gt; Parsed</code>); set <code>consumes_objects = True</code> on a renderer that can take <code>Schema</code> instances directly. Every instance in a position that declares a <code>Schema</code> (<a href="../model-schemas/#subclass-instances">subclass instances</a>)—whether a subclass or an exact instance of the declared class—reaches a custom object-consuming renderer (such as one with <code>consumes_objects = True</code>, or a <code>JSONRenderer</code> subclass overriding <code>prepare</code>) as a <code>hinoki.core.Narrowed</code> view, never the raw instance: <code>isinstance(value, Declared)</code> holds, the declared fields and <code>@computed_field</code> values read as attributes, and <code>dump()</code> (with the keywords of <code>Schema.dump</code>: <code>include</code>, <code>exclude</code>, <code>exclude_unset</code>, <code>by_alias</code>) gives the declared fields only; any fields a subclass added are not readable through it, and a field or computed value that holds a <code>Schema</code> (or subclass) reads as a <code>Narrowed</code> of the class its own type declares, at every depth. <code>Narrowed(value, declared)</code> raises <code>TypeError</code> unless <code>declared</code> is a <code>Schema</code> class that <code>value</code> is an instance of. A subclass returned for a top-level declared class that overrides <code>dump()</code> reaches the renderer as the dict returned by the declared class's <code>dump()</code> restricted to the declared fields (an exact instance of that class arrives as a <code>Narrowed</code> whose <code>dump()</code> runs the same declared <code>dump()</code>). The built-in <code>JSONRenderer</code>, <code>XMLRenderer</code> and <code>Schema.dump()</code> narrow fields directly without wrapping exact instances in <code>Narrowed</code>. Media types must be distinct within one list; a failing <code>parse</code> raises <code>InvalidBody(code, message)</code> (a 400 with that stable code).</p>
         
       </article>
 
@@ -711,7 +711,7 @@
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 05:05:09 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:45:18 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/codecs.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

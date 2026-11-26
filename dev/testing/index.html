@@ -501,7 +501,7 @@
           <h1 id="test-an-application">Test an application<a class="headerlink" href="#test-an-application" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 21:58:28 UTC">November 25, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -643,6 +643,9 @@ document cannot drift from what the action really does.</p>
 <code>query</code> (the HTTP <code>QUERY</code> method; its body goes in <code>json=</code> or <code>body=</code>, while the
 <code>query=</code> option of every call is the query string), plus
 <code>request(method, path, ...)</code> for any other method.</p>
+<p>The path is only the path: a <code>?</code> or <code>#</code> in it raises <code>ValueError</code> instead of being routed as part of the path (which would answer a 404 for the wrong reason). Send the query string with <code>query=</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">reply</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/items"</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="s2">"limit=10&amp;offset=20"</span><span class="p">)</span>
+</code></pre></div>
 <h2 id="test-file-uploads">Test file uploads<a class="headerlink" href="#test-file-uploads" title="Permanent link">&para;</a></h2>
 <p><code>ASGIClient</code> and <code>SyncClient</code> accept <code>data=</code> and <code>files=</code> and build the multipart boundary and <code>Content-Type</code> header for you. Use a sequence of file tuples to send repeated field names in order:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/uploadtest.py</span>
@@ -734,7 +737,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 21:58:28 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

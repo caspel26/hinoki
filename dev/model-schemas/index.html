@@ -501,8 +501,8 @@
           <h1 id="schemas-from-models">Schemas from models<a class="headerlink" href="#schemas-from-models" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>3 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:39:23 UTC">November 26, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -630,9 +630,84 @@ returned <code>Model</code> of the derived class at runtime, but type checkers r
 it and the <code>HNK-API-001</code> rule (<code>Actions.forbid_model_responses</code>) reports
 it. Lists or pages of models, models of another class, and plain <code>dict</code>
 values are <code>500 internal_error</code> unless the action sets
-<code>validate_response=False</code>. A subclass instance is sent with the declared
-fields only. See <a href="../endpoints/#the-response-is-checked-against-the-annotation">the response check</a>.</p>
+<code>validate_response=False</code>. A subclass instance is sent as the
+declared type: see <a href="#subclass-instances">Subclass instances</a> below. See
+<a href="../endpoints/#the-response-is-checked-against-the-annotation">the response check</a>.</p>
 </div>
+<h2 id="subclass-instances">Subclass instances<a class="headerlink" href="#subclass-instances" title="Permanent link">&para;</a></h2>
+<p>A response sends the type its annotation declares. An instance of a subclass
+(<code>Private(Public)</code>) shows the fields and <code>@computed_field</code> values of the
+declared class, never the fields the subclass added, in the JSON, XML and
+<code>dump()</code> outputs alike. An exact instance is sent unchanged.</p>
+<p>Narrowed, wherever the annotation names a <code>Schema</code> <code>S</code>:</p>
+<ul>
+<li>the top level and a <code>Schema</code> field: <code>S</code>, <code>S | None</code>, a union of <code>S</code> with other
+  types, <code>list[S]</code>, <code>list[S | None]</code>, <code>list[list[S]]</code>, <code>tuple[S, ...]</code>,
+  <code>tuple[S, T]</code>, <code>dict[str, S]</code>, <code>Page[S]</code> and <code>CursorPage[S]</code> (the top level
+  only for the two pages), and the <code>T</code> field of a generic <code>Envelope[S]</code>;</li>
+<li>the top level also takes a <code>TypedDict</code> of these and any combination of them;
+  top-level <code>dict</code>, <code>tuple</code> and <code>TypedDict</code> shapes are narrowed too, with
+  <code>validate_response=False</code> where the check refuses the annotation;</li>
+<li>the abstract forms <code>Sequence[S]</code>, <code>MutableSequence[S]</code>, <code>Collection[S]</code>,
+  <code>Iterable[S]</code> (a returned <code>list</code>, <code>tuple</code>, <code>set</code> or <code>frozenset</code>), <code>set[S]</code>,
+  <code>frozenset[S]</code>, <code>Set[S]</code>, <code>MutableSet[S]</code> (a set holding a subclass instance
+  is written as a list, in JSON and XML alike, in the set's iteration order—not
+  deterministic for subclass members; the response check refuses a
+  set annotation, so these take <code>validate_response=False</code>), <code>Mapping[str, S]</code> and
+  <code>MutableMapping[str, S]</code> (a returned <code>dict</code>), and a PEP 695 <code>type</code> alias of
+  any of these (<code>type Items = list[S]</code>; a generic one with its arguments substituted, <code>type Box[T] = list[T]</code> as <code>Box[S]</code>, <code>type Ident[T] = T</code>, <code>type Pair[A, B] = dict[B, A]</code>). A recursive alias that holds a <code>Schema</code> (<code>type Tree[T] = list[Tree[T]] | T</code>), an alias with a <code>TypeVarTuple</code> parameter, and an alias or <code>TypedDict</code> key whose annotation does not resolve cannot be narrowed: the app stops at startup with a <code>RegistrationError</code> that names the action;</li>
+<li>the return annotation of a <code>@computed_field</code>: a method declared <code>-&gt; Public</code>
+  that returns a <code>Private</code> sends <code>Public</code>'s fields. A <code>@computed_field</code> whose
+  return annotation does not resolve fails closed with a <code>RegistrationError</code>
+  at the first compile of the class (<code>validate</code>, body decoding, <code>dump</code>, or
+  OpenAPI generation; not at <code>Hinoki(include=...)</code> or <code>hinoki check</code>);</li>
+<li>a tuple returned where <code>list[S]</code> is declared (with <code>validate_response=False</code>:
+  the response check, on by default, answers <code>500</code> for it), and a lazy projection
+  (<code>aget_as</code>, <code>aproject</code>) held anywhere above;</li>
+<li>the <code>reply=</code> of a WebSocket route, for <code>send_json</code>.</li>
+</ul>
+<p>A recursive <code>TypedDict</code> that holds a <code>Schema</code> at a position that requires
+response narrowing raises <code>RegistrationError</code> when the route is registered,
+including with <code>validate_response=False</code>. For example, this return declaration
+requires narrowing the <code>item</code> field at every depth:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Item</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Tree</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+    <span class="n">item</span><span class="p">:</span> <span class="n">Item</span>
+    <span class="n">children</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Tree</span><span class="p">]</span>
+</code></pre></div>
+<p>Use a <code>Schema</code> for the recursive structure. A recursive <code>TypedDict</code> whose fields
+only hold plain values can still be registered.</p>
+<p>Written whole, because no declared schema decides them:</p>
+<ul>
+<li>a position typed <code>Any</code> or <code>object</code>;</li>
+<li>a dataclass, and a <code>Page</code> inside another container (<code>dict[str, Page[S]]</code>);</li>
+<li>a declared class that overrides <code>dump()</code>: the declared class's own <code>dump()</code>
+  runs on the instance restricted to the declared fields (a subclass's own
+  <code>dump()</code> no longer decides);</li>
+<li>a value that is not a <code>list</code>, <code>tuple</code>, <code>set</code>, <code>frozenset</code> or <code>dict</code> where a
+  collection is declared (a generator or iterator returned for <code>Iterable[S]</code>, a
+  mapping that is not a <code>dict</code>) is not walked, and the JSON and XML encoders
+  refuse it: return the declared container;</li>
+<li>a <code>list</code> that a lazy projection already holds, changed afterwards with
+  <code>list.append(projection, subclass_instance)</code>: the JSON encoder drops the
+  appended item and the XML encoder writes the list storage as it is.</li>
+</ul>
+<p>A narrowed value keeps the wire names (aliases) of an exact one.
+<a href="../codecs/#inherit-and-override">Custom renderers</a> that take objects
+(<code>consumes_objects = True</code>, or a <code>JSONRenderer</code> subclass overriding <code>prepare</code>)
+always receive a <code>Narrowed</code> view of the declared class—never the raw instance,
+even when the returned object is an exact instance of the declared class—so
+nested subclass instances in its fields cannot leak.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../schemas/">Schemas</a></li>
@@ -661,13 +736,13 @@ fields only. See <a href="../endpoints/#the-response-is-checked-against-the-anno
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#inherit-from-a-derived-schema">Inherit from a derived schema</a></li><li><a href="#convert-rows">Convert rows</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#inherit-from-a-derived-schema">Inherit from a derived schema</a></li><li><a href="#convert-rows">Convert rows</a></li><li><a href="#subclass-instances">Subclass instances</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:39:23 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

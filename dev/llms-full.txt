@@ -366,7 +366,7 @@ from hinoki.orm import Model, field, pk
 class Member(Model):
     id: UUID = pk(default_factory=uuid4)
     name: str = field(max_length=80)
-    token: str = field(unique=True)
+    token_hash: str = field(unique=True)  # SHA-256 hex digest, never the token
 ```
 
 The tasks app belongs to a member through a foreign key:
@@ -510,7 +510,7 @@ class TaskOut(Schema):
   never carries the primary key.
 - Every response is a `Schema`, never a model, a dict or a dataclass. The
   `members` app does the same with `MemberOut`, which names `id` and `name`
-  and so never sends the token.
+  and so never sends the token digest.
 
 Schemas also support aliases, computed fields and tagged unions; see
 [discriminated unions](https://hinoki.caspel.dev/dev/schema-collections.md#discriminated-unions).
@@ -669,7 +669,7 @@ Source: https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md
 The HTTP layer maps requests to operations and results to responses. It holds
 no business rule and no SQL.
 
-First, who may call. A bearer token resolves to a `Member`, and the policy
+First, who may call. A bearer token resolves to a `Member` through its SHA-256 digest (the table never holds the token), and the policy
 names the permission that every task action requires. The policy lives in the
 members app, so every app reuses it:
 
@@ -677,9 +677,16 @@ members app, so every app reuses it:
 # tracker/apps/members/security.py
 """Authentication: an opaque bearer token resolved to a ``Member``."""
 
+import hashlib
+
 from hinoki import Access, BearerAuth, Caller, Permission
 
 from .models import Member
+
+
+def hash_token(token: str) -> str:
+    """The SHA-256 hex digest stored instead of the token (high-entropy, so no KDF)."""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 class MemberPermission(Permission):
@@ -688,7 +695,7 @@ class MemberPermission(Permission):
 
 class MemberTokens(BearerAuth[Member]):
     async def resolve_token(self, token: str) -> Caller[Member] | None:
-        member = await Member.aget_or_none(token=token)
+        member = await Member.aget_or_none(token_hash=hash_token(token))
         if member is None:
             return None
         return Caller(
@@ -909,7 +916,7 @@ policy = RuleSet(
     Actions.require_return_type(match=f"{PKG}.*"),
     Actions.require_pagination(match=f"{PKG}.*"),
     Transactions.require_atomic(),
-    Schemas.forbid_exposure("token"),
+    Schemas.forbid_exposure("token_hash"),
     Schemas.require_string_limits(),
     Models.require_explicit_table(match=f"{PKG}.*"),
     Models.require_foreign_key_index(match=f"{PKG}.*"),
@@ -1083,23 +1090,26 @@ from the `server` settings ([serving](https://hinoki.caspel.dev/dev/serving.md))
 
 Every task route needs a member's token, and the Tracker has no sign-up route.
 `hinoki manage seed` is a management command of the example
-(`tracker/commands.py`) that creates the member `Ada Demo` with the synthetic
-token `demo-member-token`:
+(`tracker/commands.py`) that creates the member `Ada Demo` and prints a random token once; the table stores only its SHA-256 digest, so the token cannot be shown again. Export it:
 
 ```text
-member 'Ada Demo' created; token 'demo-member-token'
+member 'Ada Demo' created; token '<random token>' (shown once)
+```
+
+```sh
+export TOKEN='<the printed token>'
 ```
 
 With the server running, call the API from a second terminal:
 
 ```sh
 curl -X POST http://127.0.0.1:8000/tasks \
-  -H 'Authorization: Bearer demo-member-token' \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'content-type: application/json' \
   -d '{"title":"Write docs","priority":2}'
 curl 'http://127.0.0.1:8000/tasks?done=false&priority=1,2&search=docs&ordering=-created_at' \
-  -H 'Authorization: Bearer demo-member-token'
-curl http://127.0.0.1:8000/activity -H 'Authorization: Bearer demo-member-token'
+  -H "Authorization: Bearer $TOKEN"
+curl http://127.0.0.1:8000/activity -H "Authorization: Bearer $TOKEN"
 ```
 
 The first call answers `201` with the new task, the second a page with it that
@@ -1115,7 +1125,7 @@ Completing the task answers `200`; completing it again is a `409`
 `done_tasks_are_kept`:
 
 ```sh
-curl -X POST http://127.0.0.1:8000/tasks/<id>/complete -H 'Authorization: Bearer demo-member-token'
+curl -X POST http://127.0.0.1:8000/tasks/<id>/complete -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Test it
@@ -1134,8 +1144,8 @@ async def world(tmp_path: Path) -> AsyncIterator[World]:
     for name in ORDER:
         await migrator.apply(database, APPS / name / "migrations", namespace=name)
     with use_database(database):
-        ann = await Member.acreate(name="Ann", token="ann-token")
-        ben = await Member.acreate(name="Ben", token="ben-token")
+        ann = await Member.acreate(name="Ann", token_hash=hash_token("ann-token"))
+        ben = await Member.acreate(name="Ben", token_hash=hash_token("ben-token"))
     database.close()
     settings = TrackerSettings.load(overrides={"database": {"url": url}})
     async with ASGIClient(create_app(settings)) as client:
@@ -1152,7 +1162,7 @@ async def test_completing_twice_is_a_conflict_and_done_tasks_are_kept(
 ) -> None:
     task = await create(world, "Ship")
     path = f"/tasks/{task['id']}"
-    ann = world.ann.token
+    ann = "ann-token"
 
     done = await world.client.post(f"{path}/complete", token=ann)
     again = await world.client.post(f"{path}/complete", token=ann)
@@ -2731,7 +2741,7 @@ does. `aproject` / `project`, `apaginate_as` / `paginate_as`, `aget_as` /
 `select_related`, and 1-level `prefetch_related` (reverse foreign keys and
 many-to-many) schemas directly from Rust rows, materializing Python `Schema`
 instances lazily from the owned rows if inspected and falling back transparently
-when hooks, computed fields, validators, or scoped prefetches are present.
+when hooks, computed fields, validators, or scoped prefetches are present. A projected item passes `isinstance`, `dataclasses.is_dataclass`, `dataclasses.asdict`, `dataclasses.replace` and `copy.replace` as the `Schema` itself. `dataclasses.fields(type(item))` sees no fields (the class of a projected item is not the `Schema`); use `dataclasses.fields(item)`.
 
 ## Query methods
 
@@ -3744,6 +3754,13 @@ out.dump(by_alias=False)
 * With no options `dump()` honours custom `dump()` overrides; recursive options
   refuse a custom-dumped nested value. An override using the new options must
   accept the same keyword-only signature.
+* A nested `Schema` is written as the type its field declares: a subclass
+  instance held in a field `inner: Public` (or `Public | None`, `list[Public]`,
+  `dict[str, Public]`, `tuple[Public, ...]`) shows `Public`'s fields and
+  computed values, never the fields its subclass added. An exact instance is
+  written unchanged. A field typed `Any` or `object` has no declared schema and
+  writes the value whole, and a declared class that overrides `dump()` decides
+  its own shape. A `@computed_field` is narrowed by its return annotation. `dump_for_storage` (the cache) narrows the same way. The OpenAPI document already describes the declared type. [Which positions are narrowed](https://hinoki.caspel.dev/dev/model-schemas.md#subclass-instances).
 * Filtering a dump is not authorization and does not change the OpenAPI
   document: declare a `Schema` with only the fields the caller may see.
 * `dump` and `replace` are reserved method names; a field with either name
@@ -4613,8 +4630,91 @@ async def get_invoice(invoice_id: UUID) -> InvoiceDetail:
     it and the `HNK-API-001` rule (`Actions.forbid_model_responses`) reports
     it. Lists or pages of models, models of another class, and plain `dict`
     values are `500 internal_error` unless the action sets
-    `validate_response=False`. A subclass instance is sent with the declared
-    fields only. See [the response check](https://hinoki.caspel.dev/dev/endpoints.md#the-response-is-checked-against-the-annotation).
+    `validate_response=False`. A subclass instance is sent as the
+    declared type: see [Subclass instances](https://hinoki.caspel.dev/dev/model-schemas.md#subclass-instances) below. See
+    [the response check](https://hinoki.caspel.dev/dev/endpoints.md#the-response-is-checked-against-the-annotation).
+
+## Subclass instances
+
+A response sends the type its annotation declares. An instance of a subclass
+(`Private(Public)`) shows the fields and `@computed_field` values of the
+declared class, never the fields the subclass added, in the JSON, XML and
+`dump()` outputs alike. An exact instance is sent unchanged.
+
+Narrowed, wherever the annotation names a `Schema` `S`:
+
+- the top level and a `Schema` field: `S`, `S | None`, a union of `S` with other
+  types, `list[S]`, `list[S | None]`, `list[list[S]]`, `tuple[S, ...]`,
+  `tuple[S, T]`, `dict[str, S]`, `Page[S]` and `CursorPage[S]` (the top level
+  only for the two pages), and the `T` field of a generic `Envelope[S]`;
+- the top level also takes a `TypedDict` of these and any combination of them;
+  top-level `dict`, `tuple` and `TypedDict` shapes are narrowed too, with
+  `validate_response=False` where the check refuses the annotation;
+- the abstract forms `Sequence[S]`, `MutableSequence[S]`, `Collection[S]`,
+  `Iterable[S]` (a returned `list`, `tuple`, `set` or `frozenset`), `set[S]`,
+  `frozenset[S]`, `Set[S]`, `MutableSet[S]` (a set holding a subclass instance
+  is written as a list, in JSON and XML alike, in the set's iteration order—not
+  deterministic for subclass members; the response check refuses a
+  set annotation, so these take `validate_response=False`), `Mapping[str, S]` and
+  `MutableMapping[str, S]` (a returned `dict`), and a PEP 695 `type` alias of
+  any of these (`type Items = list[S]`; a generic one with its arguments substituted, `type Box[T] = list[T]` as `Box[S]`, `type Ident[T] = T`, `type Pair[A, B] = dict[B, A]`). A recursive alias that holds a `Schema` (`type Tree[T] = list[Tree[T]] | T`), an alias with a `TypeVarTuple` parameter, and an alias or `TypedDict` key whose annotation does not resolve cannot be narrowed: the app stops at startup with a `RegistrationError` that names the action;
+- the return annotation of a `@computed_field`: a method declared `-> Public`
+  that returns a `Private` sends `Public`'s fields. A `@computed_field` whose
+  return annotation does not resolve fails closed with a `RegistrationError`
+  at the first compile of the class (`validate`, body decoding, `dump`, or
+  OpenAPI generation; not at `Hinoki(include=...)` or `hinoki check`);
+- a tuple returned where `list[S]` is declared (with `validate_response=False`:
+  the response check, on by default, answers `500` for it), and a lazy projection
+  (`aget_as`, `aproject`) held anywhere above;
+- the `reply=` of a WebSocket route, for `send_json`.
+
+
+A recursive `TypedDict` that holds a `Schema` at a position that requires
+response narrowing raises `RegistrationError` when the route is registered,
+including with `validate_response=False`. For example, this return declaration
+requires narrowing the `item` field at every depth:
+
+```python
+from __future__ import annotations
+
+from typing import TypedDict
+
+from hinoki import Schema
+
+
+class Item(Schema):
+    id: int
+
+
+class Tree(TypedDict):
+    item: Item
+    children: list[Tree]
+```
+
+Use a `Schema` for the recursive structure. A recursive `TypedDict` whose fields
+only hold plain values can still be registered.
+
+Written whole, because no declared schema decides them:
+
+- a position typed `Any` or `object`;
+- a dataclass, and a `Page` inside another container (`dict[str, Page[S]]`);
+- a declared class that overrides `dump()`: the declared class's own `dump()`
+  runs on the instance restricted to the declared fields (a subclass's own
+  `dump()` no longer decides);
+- a value that is not a `list`, `tuple`, `set`, `frozenset` or `dict` where a
+  collection is declared (a generator or iterator returned for `Iterable[S]`, a
+  mapping that is not a `dict`) is not walked, and the JSON and XML encoders
+  refuse it: return the declared container;
+- a `list` that a lazy projection already holds, changed afterwards with
+  `list.append(projection, subclass_instance)`: the JSON encoder drops the
+  appended item and the XML encoder writes the list storage as it is.
+
+A narrowed value keeps the wire names (aliases) of an exact one.
+[Custom renderers](https://hinoki.caspel.dev/dev/codecs.md#inherit-and-override) that take objects
+(`consumes_objects = True`, or a `JSONRenderer` subclass overriding `prepare`)
+always receive a `Narrowed` view of the declared class—never the raw instance,
+even when the returned object is an exact instance of the declared class—so
+nested subclass instances in its fields cannot leak.
 
 ## See also
 
@@ -5403,6 +5503,8 @@ async def recent_invoices(filters: Query[InvoiceFilter]) -> InvoiceRecent:
 
 Text is converted to the `int`, `float` and `bool` the `Schema` declares before the strict validation (a repeated key fills a `list` field, a single one still does). A value that does not convert, a repeated key for a scalar, a missing required field and an unknown key (by default) are `422` errors, reported with the parameter name as prefix. The `Schema` owns the whole query string, so the action takes no other query or page parameters, at most one `Query[...]`, and it cannot be a path parameter. OpenAPI lists one query parameter per field.
 
+A plain path or query parameter (`n: int`, `slug: str`) takes no constraints: `Annotated[int, Field(ge=1)]` on one is refused with a `RegistrationError` when the routes are declared, because nothing would enforce it. Any `Field(...)` is refused, even one with only `description` or `examples`: scalar parameters read none of its attributes, and refusing every form is simpler and more explicit than allowing a subset. The same holds for the path and query parameters of a WebSocket route. Put the constraints in a `Schema` and take it as `Query[...]` (above) or as the body; on a WebSocket, validate inside the handler.
+
 ## Form bodies
 
 A plain `Schema` parameter is a strict JSON body. Wrap it in `Form[...]` to read the same `Schema` from a form, whose values are all text:
@@ -5554,6 +5656,8 @@ The refusal is `errors.TooManyRequests(retry_after)`: status 429, code `rate_lim
 
 Limiting failed credentials of a `BearerAuth` provider belongs in that provider, because authentication runs first.
 
+The policy runs after the route is matched and the caller is authenticated, so it never sees a request whose credentials were refused and cannot throttle failed authentication attempts (guessing a password or a token). To bound those, limit at the reverse proxy, or put the limit on an unauthenticated login route (as `/auth/login` above), where the handler checks the credentials after the policy has run.
+
 A refusal emits a `RateLimited` [event](https://hinoki.caspel.dev/dev/events.md#authentication-and-rate-limit-events) (policy class name, route template, `retry_after`; no key, caller or address) when the application has a handler for it. A handler cannot change the `429`.
 
 ### The response is checked against the annotation
@@ -5569,7 +5673,7 @@ async def raw_invoice(invoice_id: UUID) -> InvoiceOut:
 
 - **At startup.** An annotation that cannot be checked stops the app with a `RegistrationError` that names the action: no annotation, `Any`, `object`, `set[...]`, a plain class, or `Response` inside a collection. Annotate a concrete type, or declare the action with `validate_response=False` to skip the check for that action.
 - **At runtime.** A result that does not match is a `500 internal_error`, because the fault is the server's, not the client's. With the [`debug` setting](https://hinoki.caspel.dev/dev/web-security.md#debug) on (development only; `hinoki dev` does not turn it on) the answer names the action, the type it returned and the annotation it broke, for example `raw_invoice returned a dict that does not match its return annotation InvoiceOut`. Without debug the body is generic. The log and the answer never contain the value itself. With `atomic=True` the check runs inside the transaction, so a mismatch rolls the write back.
-- **What is accepted.** A `Schema` class, `list[...]`, `dict[str, ...]` and `Page[...]` of these, `str`, `int`, `float`, `bool` (a `bool` is not an `int`), `bytes`, `datetime`, `date`, `UUID`, `Decimal`, `None`, plain `dict` and `list`, `Any` or `object` as an item type, and unions of these. `Annotated[...]` is unwrapped. The check never coerces.
+- **What is accepted.** A `Schema` class, `list[...]`, `dict[str, ...]` and `Page[...]` of these, `str`, `int`, `float`, `bool` (a `bool` is not an `int`), `bytes`, `datetime`, `date`, `UUID`, `Decimal`, `None`, plain `dict` and `list`, `Any` or `object` as an item type, and unions of these. `Annotated[...]` and a PEP 695 `type` alias are unwrapped (a recursive alias stops the app with a `RegistrationError`; with `validate_response=False` too when it holds a `Schema`, because it cannot be narrowed; an alias that cannot be resolved, such as one with a `TypeVarTuple` parameter, is refused the same way, naming the action). The check never coerces.
 - **`Response`.** `-> Response` and `InvoiceOut | Response` are accepted: a returned `Response` carries its own status, headers and body and is not checked. The OpenAPI document describes `InvoiceOut | Response` by its typed arm, `InvoiceOut`. Actions with a bodyless status (`204`, `304`) are not checked.
 - **What it does not check.** A `Schema` instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a `dump()` override can still change the bytes afterwards.
 
@@ -5805,6 +5909,8 @@ invoices = crud(
 
 Each attribute name is the column it filters. Types are `bool`, `int`, `float`, `str`, `UUID`, `date`, `datetime` (an RFC 3339 instant, read as UTC), `Decimal` and `Literal[...]` of strings; an `Eq`, `In` or `Range` is also what the typed OpenAPI parameter documents. A bool, UUID or `Literal` has no `Range`. An empty value (`?paid=`) is ignored.
 
+Without `filters=` a generated list ignores query parameters it does not know (`?name=x` returns the unfiltered page); with `filters=` an unknown one is a `422`, as described below.
+
 A name that is not declared, an operator that the field does not have (`?paid.from=1`), a value of the wrong type or outside the `Literal`, a repeated parameter, an ordering key outside `ordering`, or a value that is too long is a `422` listing every problem with its `path` and a `code` (`type`, `choice`, `unknown`, `operator`, `duplicate`, `too_long`, `too_many`); the message never repeats the client's value. Values are parsed and coerced in Rust, bound as parameters and never become SQL text, and column names come only from the declaration, checked against the model when the routes are declared.
 
 SQLite keeps a `Decimal` column as text, which compares by spelling and orders alphabetically, not numerically. A `Range[Decimal]` filter (`?amount.from=...`/`?amount.to=...`) or an `ordering` entry naming a `Decimal` column is a `422` there, with `code` `unsupported` and `path` naming the field (or `ordering`); only equality (`Eq`, `In`, `.null`) is checked against a `Decimal` column on SQLite. PostgreSQL and MySQL compare and order a `Decimal` numerically and accept the full `Range`.
@@ -5907,6 +6013,8 @@ class Invoices(API):
 ```
 
 Apply visibility filters (such as `archived=False`) in `get_queryset` or `filter_queryset`, and enforce mandatory tenant or account boundaries with [`RowScope`](https://hinoki.caspel.dev/dev/crud.md#mandatory-row-scope) via `scope=`; `owner=` is an independent write safeguard, not read authorization. Relations are never loaded implicitly: load them in `to_schema`, and in `written_queryset` for the answer to a write, independently of filters that might hide the changed row from later list requests. Writes are constrained by the mandatory `scope=`, the query of `get_queryset`, the primary key and the owner column inside the mutation statement. `change` and `remove` must write through that `scoped_queryset` (call `super()` to keep the default mutation).
+
+With `owner=` and generated reads, Hinoki issues a `UserWarning` when neither `scope=` nor a `get_queryset` override bounds the reads. The warning is attributed to the resource declaration. Set `scope=`, override `get_queryset`, or omit the read actions. For intentionally public reads, a standard-library warning filter matching `<Model>: owner=<column> constrains writes only` preserves native-lane eligibility.
 
 ## Mandatory row scope
 
@@ -6619,11 +6727,16 @@ origin the application's CORS policy lists by name. A CORS wildcard
 WebSocket handshake and does not hide the answer from other sites, so an open
 policy would let any site use a cookie-authenticated action. Anything else is
 refused with `403` before the upgrade. On Granian the check covers the same
-sources. Where the connection is known to be `https` (direct TLS, a trusted
-proxy reporting `https`, or `wss` on Granian), the same-host match also
-requires an `https://` origin. Granian handshakes also go through
+sources, through the same Rust predicate. The same-host match requires the
+scheme the connection has: `https://` where the connection is `https` (direct
+TLS, a trusted proxy reporting `https`, or `wss` on Granian) and `http://`
+otherwise, never both. Behind a proxy that terminates TLS without reporting the
+scheme, list the page's origin in `origins=` or the CORS origins. The host is
+compared exactly, in lower case, port included: no default port or trailing dot
+is folded in. Granian handshakes also go through
 `allowed_hosts` and trusted-proxy handling, and the route is matched on the raw
-path, as for HTTP requests.
+path, as for HTTP requests. The same-host match trusts the `Host` header, so an app with
+WebSocket routes and `allowed_hosts` left at `*` refuses to start unless `debug` is on, which is for local development only; with `debug` on the app then accepts loopback `Host` names only (`localhost`, `*.localhost`, `127.0.0.0/8`, `[::1]`), any other `Host` receives `400`, and a handshake to it is refused. Name the served hosts with `allowed_hosts` to serve other names.
 
 ## Subprotocols
 
@@ -6654,7 +6767,7 @@ async def feed(socket: http.WebSocket) -> None:
 | `await socket.receive_bytes()` | the next binary message; a text one closes with `1003` |
 | `await socket.receive_json(schema=None)` | text parsed as JSON, then validated against the `Schema` given or the route's `message` |
 | `await socket.send_text(text)`, `send_bytes(data)` | queue a message, waiting while the outgoing queue is full |
-| `await socket.send_json(value)` | a JSON text message; with `reply=` on the route, validated against it |
+| `await socket.send_json(value)` | a JSON text message; with `reply=` on the route, a `dict` is validated against it and an instance of a subclass of it is sent with the fields of `reply` only |
 | `await socket.close(code=1000, reason="")` | close after the queued messages |
 | `async for message in socket` | each message, until the connection ends; with `message=` on the route, each is a validated `Schema` instance |
 
@@ -7943,7 +8056,7 @@ class SnakeCase(JSONParser):
         return rename_keys(data) if isinstance(data, dict) else data
 ```
 
-For a different format write a `Renderer` (`media_type`, `render(value, request) -> bytes`) or a `Parser` (`media_type`, `parse(raw, content_type) -> Parsed`); set `consumes_objects = True` on a renderer that can take `Schema` instances directly. Media types must be distinct within one list; a failing `parse` raises `InvalidBody(code, message)` (a 400 with that stable code).
+For a different format write a `Renderer` (`media_type`, `render(value, request) -> bytes`) or a `Parser` (`media_type`, `parse(raw, content_type) -> Parsed`); set `consumes_objects = True` on a renderer that can take `Schema` instances directly. Every instance in a position that declares a `Schema` ([subclass instances](https://hinoki.caspel.dev/dev/model-schemas.md#subclass-instances))—whether a subclass or an exact instance of the declared class—reaches a custom object-consuming renderer (such as one with `consumes_objects = True`, or a `JSONRenderer` subclass overriding `prepare`) as a `hinoki.core.Narrowed` view, never the raw instance: `isinstance(value, Declared)` holds, the declared fields and `@computed_field` values read as attributes, and `dump()` (with the keywords of `Schema.dump`: `include`, `exclude`, `exclude_unset`, `by_alias`) gives the declared fields only; any fields a subclass added are not readable through it, and a field or computed value that holds a `Schema` (or subclass) reads as a `Narrowed` of the class its own type declares, at every depth. `Narrowed(value, declared)` raises `TypeError` unless `declared` is a `Schema` class that `value` is an instance of. A subclass returned for a top-level declared class that overrides `dump()` reaches the renderer as the dict returned by the declared class's `dump()` restricted to the declared fields (an exact instance of that class arrives as a `Narrowed` whose `dump()` runs the same declared `dump()`). The built-in `JSONRenderer`, `XMLRenderer` and `Schema.dump()` narrow fields directly without wrapping exact instances in `Narrowed`. Media types must be distinct within one list; a failing `parse` raises `InvalidBody(code, message)` (a 400 with that stable code).
 
 # OpenAPI document
 
@@ -8170,9 +8283,15 @@ action needs. Write both once and name the policy on each private action.
 
 ```python
 # blog/apps/blog/security.py
+import hashlib
+
 from hinoki import Access, BearerAuth, Caller, Permission
 
 from .models import User
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 class BlogPermission(Permission):
@@ -8180,10 +8299,10 @@ class BlogPermission(Permission):
 
 
 class TokenAuth(BearerAuth[User]):
-    """Looks the token up in ``blog_users``; editors get the write scope."""
+    """Looks the token's digest up in ``blog_users``; editors get the write scope."""
 
     async def resolve_token(self, token: str) -> Caller[User] | None:
-        user = await User.aget_or_none(token=token)
+        user = await User.aget_or_none(token_hash=hash_token(token))
         if user is None:
             return None
         scopes = frozenset({BlogPermission.WRITE}) if user.is_editor else frozenset()
@@ -8658,7 +8777,7 @@ With `debug` on, the `500 internal_error` answer for an unhandled exception also
 }
 ```
 
-Declared errors, validation errors and the other framework answers are unchanged, and the exception is logged either way. Exception messages can contain data you would not publish, so keep `debug` off in a deployment; each worker logs a warning at startup while it is on. `debug` changes nothing else: it does not enable documentation pages, relax authentication or skip the host check, and `hinoki dev` does not set it.
+Declared errors, validation errors and the other framework answers are unchanged, and the exception is logged either way. Exception messages can contain data you would not publish, so keep `debug` off in a deployment; each worker logs a warning at startup while it is on. `debug` changes nothing else: it does not enable documentation pages, relax authentication or skip the host check (with an admin or a WebSocket route and `allowed_hosts` at `*` it narrows the hosts to loopback, see below), and `hinoki dev` does not set it.
 
 ### `allowed_hosts` {#allowed_hosts}
 
@@ -8673,7 +8792,7 @@ The `Host` header of every request must match one entry:
 
 Matching ignores case, the port and a trailing dot. The header must be exactly one host with an optional port; a request for another host, with two `Host` headers or without a usable one, receives `400 disallowed_host` before routing, authentication and body reading; documentation routes are covered too. Entries are names: a scheme, port, path, non-ASCII text (write an international name in its ASCII IDNA form, `xn--...`) or a partial wildcard such as `*.example.com` fails at load, and `*` cannot be mixed with other entries. A dot entry is as wide as it reads: `.com` allows every `.com` host.
 
-Set the list in a deployment that is reachable under more names than it should answer to. While `allowed_hosts` is `*` and `debug` is off, each worker logs a warning at startup (logger `hinoki.runtime`, shown with the default logging settings): every `Host` header is accepted, so links, redirects and cache keys built from it, such as a password-reset link, can name a host the client chose (Host header injection). Name the hosts the deployment serves to silence it, for example `allowed_hosts=("app.example.com",)`, or `(".example.com",)` for a domain and its subdomains (`NOTES_ALLOWED_HOSTS=app.example.com`). It is a warning, not an error, so the default keeps working in development; with `debug` on it is not logged, and the in-process test clients (`ASGIClient`, `SyncClient`) and the MCP `run_scenario` tool, which receive no network `Host` header, do not log it either.
+Set the list in a deployment that is reachable under more names than it should answer to. While `allowed_hosts` is `*` (the default, and the case for an app built without settings) and `debug` is off, each worker logs a warning at startup (logger `hinoki.runtime`, shown with the default logging settings): every `Host` header is accepted, so links, redirects and cache keys built from it, such as a password-reset link, can name a host the client chose (Host header injection). Name the hosts the deployment serves to silence it, for example `allowed_hosts=("app.example.com",)`, or `(".example.com",)` for a domain and its subdomains (`NOTES_ALLOWED_HOSTS=app.example.com`). It is only a warning for a plain API, so the default keeps working in development. An app that includes the [admin](https://hinoki.caspel.dev/dev/admin.md) or registers a [WebSocket route](https://hinoki.caspel.dev/dev/websockets.md) is refused at startup instead (the lifespan fails with a message naming `allowed_hosts`, and `hinoki serve` logs the error and exits with status 1; the server may already have logged that it is listening, but it answers no request): the admin's CSRF check and the WebSocket same-origin check compare the `Origin` header with the `Host` header, so with `*` a DNS-rebinding page (`Host: evil.example`, `Origin: https://evil.example`) would pass both. Name the served hosts. `debug` lifts the refusal for local development only, and then the app accepts loopback hosts only: with `debug` on and `allowed_hosts` at `*`, an app that serves an admin or a WebSocket route accepts only the Host names `localhost`, `*.localhost`, any `127.0.0.0/8` address and `[::1]` (with or without a port, in any case, with or without a trailing dot) for the whole app, and any other `Host` receives `400`, so a DNS-rebinding page cannot reach a development server; set `allowed_hosts` to serve other names (an explicit list is always used as given). An app without an admin or a WebSocket route still accepts any `Host` under `debug`. Each worker logs a startup warning while the loopback-only rule applies. With `debug` on the any-host warning is not logged, and the in-process test clients (`ASGIClient`, `SyncClient`) and the MCP `run_scenario` tool, which receive no network `Host` header, do not log it either.
 
 The in-process test clients send no `Host` header, so a test of an application with a restrictive list passes one: `await client.get("/x", headers={"host": "api.example.com"})`.
 
@@ -8762,6 +8881,7 @@ Set `logging.include_request_id=true` to add the resolved ID to Hinoki's own log
 ## Errors and edge cases
 
 - An invalid `allowed_hosts` entry, a `*` mixed with names, or a CORS origin with a path fails when settings load, before any worker starts.
+- A served app with the admin or a WebSocket route, `allowed_hosts` at `*` and `debug` off does not start; with `debug` on it answers `400` to every `Host` that is not loopback (`localhost`, `*.localhost`, `127.0.0.0/8`, `[::1]`). The in-process test clients are exempt.
 - `redirect_https=True` with `allowed_hosts` left at `*` is refused at load: the redirect needs a host it can trust.
 - A request for an unlisted host receives `400 disallowed_host`; a preflight from an unlisted origin receives `403 cors_origin_denied`.
 - Tests with a restrictive host list pass the header: `await client.get("/health", headers={"host": "api.example.com"})`.
@@ -8882,7 +9002,7 @@ blog_rules = RuleSet(
     Actions.require_access(match="blog.*", except_=PUBLIC),
     Actions.require_permissions(match="blog.*", except_=[*PUBLIC, *SIGNED_IN]),
     Transactions.require_atomic(except_=["hinoki.ai.mcpapp.*"]),
-    Schemas.forbid_exposure("token", "password_hash"),
+    Schemas.forbid_exposure("token_hash", "password_hash"),
     Imports.forbid(source="blog.apps.blog.models", target="blog.apps.blog.api"),
     # ... and the other six rules, see the file
 )
@@ -9778,7 +9898,7 @@ generated `main.py` passes `openapi_url` and `docs_url` as `Hinoki(...)` argumen
 | `security` | `referrer_policy` | `same-origin` | A supported `settings.ReferrerPolicy` enum value |
 | (top level) | `timezone` | `UTC` | IANA timezone name used by `app.now()` |
 | (top level) | `debug` | `false` | Adds exception details to `500` answers; development only |
-| (top level) | `allowed_hosts` | `*` | Host names, `.domain` or `*`; other `Host` values receive `400` |
+| (top level) | `allowed_hosts` | `*` | Host names, `.domain` or `*`; other `Host` values receive `400`; `*` with `debug` off refuses to start an app that includes the admin or a WebSocket route; with `debug` on, such an app accepts loopback hosts only (`localhost`, `*.localhost`, `127.0.0.0/8`, `[::1]`) |
 
 `settings.DatabaseSettings` is an optional field you declare in your own settings class, not a `settings.AppSettings` group. Its `url` defaults to `sqlite://./.hinoki/local.sqlite3`; `max_size` defaults to `10` connections per worker and must be at least `1`.
 
@@ -10307,7 +10427,7 @@ Routes with a [many-to-many ids field](https://hinoki.caspel.dev/dev/crud.md#man
 ## Limits
 
 * HTTP/1.1, plus HTTP/2 over TLS when `server.http2` is on (see below). WebSocket upgrades are accepted for the actions declared with `@http.websocket` (see [WebSockets](https://hinoki.caspel.dev/dev/websockets.md)); any other `Upgrade` header is ignored and the request is answered as plain HTTP, and no other protocol is ever switched to. There is no cleartext HTTP/2 (neither prior knowledge nor `Upgrade: h2c`).
-* A request line plus headers larger than `execution.max_header_bytes`, or a query longer than `execution.max_query_bytes`, is refused (`431`, `414`). A body larger than `execution.max_body_bytes` is refused with `413`, by `Content-Length` before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for `body_read_timeout` seconds (10 by default, never more than half of `execution.request_timeout`) gets `408`, and so does one that trickles data: the whole body must arrive within six times `body_read_timeout`.
+* A request line plus headers larger than `execution.max_header_bytes`, or a query longer than `execution.max_query_bytes`, is refused (`431`, `414`). A body larger than `execution.max_body_bytes` is refused with `413`, by `Content-Length` before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for `body_read_timeout` seconds (10 by default, never more than half of `execution.request_timeout`) gets `408`, and so does one that trickles data: the whole body must arrive within six times `body_read_timeout`. After a `413` Kiso closes the connection once it has read and discarded at most 1 MiB of what the client is still sending, or after 2 seconds, whichever comes first. A client that streams much more than the limit before it reads can therefore see a connection reset instead of the `413`, depending on the socket buffers of the two hosts; a body slightly above the limit gets the `413`.
 * A client that does not finish its request headers within `header_read_timeout` seconds (10 by default) is disconnected; the same timer closes idle keep-alive connections.
 * TLS is optional: set `server.tls_cert_file` and `server.tls_key_file` (PEM; the key may be PKCS#8, PKCS#1 or SEC1) and Kiso speaks HTTPS with rustls (TLS 1.2 and 1.3, the library's default cipher suites, no client certificates, ALPN `http/1.1`, or `h2` then `http/1.1` with `server.http2`). The files are read once at start, so a renewed certificate needs a restart (a rolling restart of the workers is enough). A plaintext client on a TLS port gets a TLS alert, never an answer, and the handshake must finish within `header_read_timeout`. Requests over TLS have the scheme `https`, so the HSTS policy applies. `hinoki serve` warns when the key is readable by every local user. Granian takes the same two settings (the framework asks it for TLS 1.2 and up and HTTP/1.1 only, as Kiso does, unless `server.http2` is on). A trusted proxy's `X-Forwarded-Proto` overrides the scheme, `http` included, on both servers. The handshake and the request head each have their own `header_read_timeout`, so a slow client can hold a connection slot for up to twice that time. Behind a proxy that terminates TLS, leave them unset and list the proxy in `trusted_proxies` instead.
 * HTTP/2 is opt-in: set `server.http2 = true` together with the TLS files (it is a settings error without them, on both servers). The server then offers ALPN `h2` and `http/1.1` and serves each connection with the protocol it negotiated; a client that offers only `http/1.1`, or no ALPN, still gets HTTP/1.1. Requests reach the application unchanged, with `http_version` `2` in the ASGI scope; the `:authority` pseudo-header becomes the `Host` and wins over a `host` header that differs. Limits are fixed, not settings: 32 concurrent streams per connection (the 33rd is refused), a 64 KiB stream window, header lists bounded by `execution.max_header_bytes` and at most 100 header lines per request (`cookie` fields count once; more is answered `431`), and the h2 library's rapid-reset protections. A connection counts as one slot of `max_connections`, but every stream in flight uses backend capacity (the in-flight limit and the queue) like a request of its own, so size those limits for connections times 32. The server also drops a connection on which more than 100 streams end before their response completed (client resets) within a fixed 10-second window; it is closed without a `GOAWAY`. The count is per connection, not per client: a client can pass about twice the bound across a window boundary, and a new connection starts from zero. A connection with no open stream for `header_read_timeout` is closed gracefully (`GOAWAY`; a stream opened in the race with the `GOAWAY` is accepted and then cut when the shutdown timeout ends). A response that sends no data for `write_timeout` seconds (a client that keeps its flow-control window at zero, or stopped reading) also gets the connection a `GOAWAY`: hyper cannot reset one stream from outside, so the other streams have the shutdown timeout to finish and the stalled one is cut with the connection. Progress is tracked per response, so opening new streams does not hide a stalled one. Keep-alive pings every 30 seconds drop a peer that stopped answering. Set `write_timeout` above 32 x 16 KiB divided by the slowest client bandwidth you expect to serve: HTTP/2 shares the window between streams unevenly, so on a slow link each of 32 concurrent downloads can wait that long between two chunks and be taken for stalled while bytes still flow. A request with several `host` headers and no `:authority` is refused with `400`. A client that trickles the head of one stream while others are open is not bounded by `header_read_timeout`. On stop the server sends `GOAWAY`, lets streams in flight finish, and aborts what is left after the shutdown timeout. Not provided: cleartext HTTP/2 (h2c), server push, and WebSocket or `CONNECT` over HTTP/2. Granian with `server.http2` negotiates HTTP/2 itself (`http` mode `auto`), under its own limits.
@@ -10590,6 +10710,12 @@ document cannot drift from what the action really does.
 `query` (the HTTP `QUERY` method; its body goes in `json=` or `body=`, while the
 `query=` option of every call is the query string), plus
 `request(method, path, ...)` for any other method.
+
+The path is only the path: a `?` or `#` in it raises `ValueError` instead of being routed as part of the path (which would answer a 404 for the wrong reason). Send the query string with `query=`:
+
+```python
+reply = await client.get("/items", query="limit=10&offset=20")
+```
 
 ## Test file uploads
 
@@ -11528,7 +11654,7 @@ export BLOG_ADMIN__SECRET="$(python -c 'import secrets; print(secrets.token_urls
 | `admin.min_password_length` | `12` | Shortest password accepted |
 | `admin.theme` | none | Built-in theme (`studio`, `console`, `paper`, `bento`) for an `Admin` that sets no `theme=`; `studio` when neither is set |
 
-`Admin(secret=...)` overrides the secret and `Admin(theme=...)` the theme for one site. An admin with neither stops the app at startup.
+`Admin(secret=...)` overrides the secret and `Admin(theme=...)` the theme for one site. An admin with neither stops the app at startup. So does an admin served with `allowed_hosts` at its default `*` and `debug` off: the CSRF check trusts the `Host` header it compares the `Origin` with, so name the served hosts; `debug` only lifts the refusal for local development, and then the whole app accepts loopback `Host` names only (`localhost`, `*.localhost`, `127.0.0.0/8`, `[::1]`; any other `Host` receives `400`) unless `allowed_hosts` names the hosts (see [Hosts, CORS and HTTPS](https://hinoki.caspel.dev/dev/web-security.md#allowed_hosts)). The in-process test clients are not affected.
 
 ## Who may sign in
 

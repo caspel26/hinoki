@@ -257,7 +257,7 @@
           <h1 id="4-endpoints">4. Endpoints<a class="headerlink" href="#4-endpoints" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:06:04 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -265,15 +265,22 @@
         
 <p>The HTTP layer maps requests to operations and results to responses. It holds
 no business rule and no SQL.</p>
-<p>First, who may call. A bearer token resolves to a <code>Member</code>, and the policy
+<p>First, who may call. A bearer token resolves to a <code>Member</code> through its SHA-256 digest (the table never holds the token), and the policy
 names the permission that every task action requires. The policy lives in the
 members app, so every app reuses it:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/members/security.py</span>
 <span class="sd">"""Authentication: an opaque bearer token resolved to a ``Member``."""</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">BearerAuth</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">Permission</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">hash_token</span><span class="p">(</span><span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The SHA-256 hex digest stored instead of the token (high-entropy, so no KDF)."""</span>
+    <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">token</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">MemberPermission</span><span class="p">(</span><span class="n">Permission</span><span class="p">):</span>
@@ -282,7 +289,7 @@ members app, so every app reuses it:</p>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">MemberTokens</span><span class="p">(</span><span class="n">BearerAuth</span><span class="p">[</span><span class="n">Member</span><span class="p">]):</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_token</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">member</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">aget_or_none</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">token</span><span class="p">)</span>
+        <span class="n">member</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">aget_or_none</span><span class="p">(</span><span class="n">token_hash</span><span class="o">=</span><span class="n">hash_token</span><span class="p">(</span><span class="n">token</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">member</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span>
         <span class="k">return</span> <span class="n">Caller</span><span class="p">(</span>
@@ -484,7 +491,7 @@ default <code>/&lt;app name&gt;</code>), which is why <code>path=""</code> above
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:06:04 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/4-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

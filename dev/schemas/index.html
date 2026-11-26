@@ -501,7 +501,7 @@
           <h1 id="schemas">Schemas<a class="headerlink" href="#schemas" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 09:46:07 UTC">November 26, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -594,6 +594,13 @@ unknown name raises <code>TypeError</code>:</p>
 <li>With no options <code>dump()</code> honours custom <code>dump()</code> overrides; recursive options
   refuse a custom-dumped nested value. An override using the new options must
   accept the same keyword-only signature.</li>
+<li>A nested <code>Schema</code> is written as the type its field declares: a subclass
+  instance held in a field <code>inner: Public</code> (or <code>Public | None</code>, <code>list[Public]</code>,
+  <code>dict[str, Public]</code>, <code>tuple[Public, ...]</code>) shows <code>Public</code>'s fields and
+  computed values, never the fields its subclass added. An exact instance is
+  written unchanged. A field typed <code>Any</code> or <code>object</code> has no declared schema and
+  writes the value whole, and a declared class that overrides <code>dump()</code> decides
+  its own shape. A <code>@computed_field</code> is narrowed by its return annotation. <code>dump_for_storage</code> (the cache) narrows the same way. The OpenAPI document already describes the declared type. <a href="../model-schemas/#subclass-instances">Which positions are narrowed</a>.</li>
 <li>Filtering a dump is not authorization and does not change the OpenAPI
   document: declare a <code>Schema</code> with only the fields the caller may see.</li>
 <li><code>dump</code> and <code>replace</code> are reserved method names; a field with either name
@@ -731,7 +738,7 @@ following are intentionally out of scope:</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 09:46:07 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

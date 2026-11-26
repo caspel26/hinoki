@@ -113,8 +113,91 @@ async def get_invoice(invoice_id: UUID) -> InvoiceDetail:
     it and the `HNK-API-001` rule (`Actions.forbid_model_responses`) reports
     it. Lists or pages of models, models of another class, and plain `dict`
     values are `500 internal_error` unless the action sets
-    `validate_response=False`. A subclass instance is sent with the declared
-    fields only. See [the response check](https://hinoki.caspel.dev/dev/endpoints.md#the-response-is-checked-against-the-annotation).
+    `validate_response=False`. A subclass instance is sent as the
+    declared type: see [Subclass instances](https://hinoki.caspel.dev/dev/model-schemas.md#subclass-instances) below. See
+    [the response check](https://hinoki.caspel.dev/dev/endpoints.md#the-response-is-checked-against-the-annotation).
+
+## Subclass instances
+
+A response sends the type its annotation declares. An instance of a subclass
+(`Private(Public)`) shows the fields and `@computed_field` values of the
+declared class, never the fields the subclass added, in the JSON, XML and
+`dump()` outputs alike. An exact instance is sent unchanged.
+
+Narrowed, wherever the annotation names a `Schema` `S`:
+
+- the top level and a `Schema` field: `S`, `S | None`, a union of `S` with other
+  types, `list[S]`, `list[S | None]`, `list[list[S]]`, `tuple[S, ...]`,
+  `tuple[S, T]`, `dict[str, S]`, `Page[S]` and `CursorPage[S]` (the top level
+  only for the two pages), and the `T` field of a generic `Envelope[S]`;
+- the top level also takes a `TypedDict` of these and any combination of them;
+  top-level `dict`, `tuple` and `TypedDict` shapes are narrowed too, with
+  `validate_response=False` where the check refuses the annotation;
+- the abstract forms `Sequence[S]`, `MutableSequence[S]`, `Collection[S]`,
+  `Iterable[S]` (a returned `list`, `tuple`, `set` or `frozenset`), `set[S]`,
+  `frozenset[S]`, `Set[S]`, `MutableSet[S]` (a set holding a subclass instance
+  is written as a list, in JSON and XML alike, in the set's iteration order—not
+  deterministic for subclass members; the response check refuses a
+  set annotation, so these take `validate_response=False`), `Mapping[str, S]` and
+  `MutableMapping[str, S]` (a returned `dict`), and a PEP 695 `type` alias of
+  any of these (`type Items = list[S]`; a generic one with its arguments substituted, `type Box[T] = list[T]` as `Box[S]`, `type Ident[T] = T`, `type Pair[A, B] = dict[B, A]`). A recursive alias that holds a `Schema` (`type Tree[T] = list[Tree[T]] | T`), an alias with a `TypeVarTuple` parameter, and an alias or `TypedDict` key whose annotation does not resolve cannot be narrowed: the app stops at startup with a `RegistrationError` that names the action;
+- the return annotation of a `@computed_field`: a method declared `-> Public`
+  that returns a `Private` sends `Public`'s fields. A `@computed_field` whose
+  return annotation does not resolve fails closed with a `RegistrationError`
+  at the first compile of the class (`validate`, body decoding, `dump`, or
+  OpenAPI generation; not at `Hinoki(include=...)` or `hinoki check`);
+- a tuple returned where `list[S]` is declared (with `validate_response=False`:
+  the response check, on by default, answers `500` for it), and a lazy projection
+  (`aget_as`, `aproject`) held anywhere above;
+- the `reply=` of a WebSocket route, for `send_json`.
+
+
+A recursive `TypedDict` that holds a `Schema` at a position that requires
+response narrowing raises `RegistrationError` when the route is registered,
+including with `validate_response=False`. For example, this return declaration
+requires narrowing the `item` field at every depth:
+
+```python
+from __future__ import annotations
+
+from typing import TypedDict
+
+from hinoki import Schema
+
+
+class Item(Schema):
+    id: int
+
+
+class Tree(TypedDict):
+    item: Item
+    children: list[Tree]
+```
+
+Use a `Schema` for the recursive structure. A recursive `TypedDict` whose fields
+only hold plain values can still be registered.
+
+Written whole, because no declared schema decides them:
+
+- a position typed `Any` or `object`;
+- a dataclass, and a `Page` inside another container (`dict[str, Page[S]]`);
+- a declared class that overrides `dump()`: the declared class's own `dump()`
+  runs on the instance restricted to the declared fields (a subclass's own
+  `dump()` no longer decides);
+- a value that is not a `list`, `tuple`, `set`, `frozenset` or `dict` where a
+  collection is declared (a generator or iterator returned for `Iterable[S]`, a
+  mapping that is not a `dict`) is not walked, and the JSON and XML encoders
+  refuse it: return the declared container;
+- a `list` that a lazy projection already holds, changed afterwards with
+  `list.append(projection, subclass_instance)`: the JSON encoder drops the
+  appended item and the XML encoder writes the list storage as it is.
+
+A narrowed value keeps the wire names (aliases) of an exact one.
+[Custom renderers](https://hinoki.caspel.dev/dev/codecs.md#inherit-and-override) that take objects
+(`consumes_objects = True`, or a `JSONRenderer` subclass overriding `prepare`)
+always receive a `Narrowed` view of the declared class—never the raw instance,
+even when the returned object is an exact instance of the declared class—so
+nested subclass instances in its fields cannot leak.
 
 ## See also
 

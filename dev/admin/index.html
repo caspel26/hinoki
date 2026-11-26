@@ -501,8 +501,8 @@
           <h1 id="add-an-admin">Add an admin<a class="headerlink" href="#add-an-admin" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
-            <span>8 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:13:03 UTC">November 26, 2026</span></span>
+            <span>9 min read</span>
           </p>
           
         </header>
@@ -616,7 +616,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 </tr>
 </tbody>
 </table>
-<p><code>Admin(secret=...)</code> overrides the secret and <code>Admin(theme=...)</code> the theme for one site. An admin with neither stops the app at startup.</p>
+<p><code>Admin(secret=...)</code> overrides the secret and <code>Admin(theme=...)</code> the theme for one site. An admin with neither stops the app at startup. So does an admin served with <code>allowed_hosts</code> at its default <code>*</code> and <code>debug</code> off: the CSRF check trusts the <code>Host</code> header it compares the <code>Origin</code> with, so name the served hosts; <code>debug</code> only lifts the refusal for local development, and then the whole app accepts loopback <code>Host</code> names only (<code>localhost</code>, <code>*.localhost</code>, <code>127.0.0.0/8</code>, <code>[::1]</code>; any other <code>Host</code> receives <code>400</code>) unless <code>allowed_hosts</code> names the hosts (see <a href="../web-security/#allowed_hosts">Hosts, CORS and HTTPS</a>). The in-process test clients are not affected.</p>
 <h2 id="who-may-sign-in">Who may sign in<a class="headerlink" href="#who-may-sign-in" title="Permanent link">&para;</a></h2>
 <p><code>Admin()</code> without <code>access=</code> uses its own users:</p>
 <ul>
@@ -798,7 +798,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:13:03 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
