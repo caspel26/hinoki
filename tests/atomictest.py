@@ -506,3 +506,31 @@ async def test_atomic_sql_commits_before_session_store_save(
         reply = await client.post("/atomic-session")
     assert reply.status == 500
     assert await names(database) == ["sql-committed"]
+
+
+async def test_atomic_stream_source_closes_after_rollback(
+    database: Database, url: str
+) -> None:
+    events: list[tuple[str, bool]] = []
+
+    class RecordingStream:
+        def __aiter__(self) -> "RecordingStream":
+            return self
+
+        async def __anext__(self) -> bytes:
+            raise StopAsyncIteration
+
+        async def aclose(self) -> None:
+            events.append(("aclose", current_database().active() is None))
+
+    @http.post("/atomic-stream-close", atomic=True)
+    async def atomic_stream() -> http.Response:
+        await insert("leaked-stream")
+        return http.Stream(RecordingStream())
+
+    app = Hinoki(include=[atomic_stream], modules=[DatabaseModule(url)])
+    async with ASGIClient(app) as client:
+        reply = await client.post("/atomic-stream-close")
+    assert reply.status == 500
+    assert await names(database) == []
+    assert events == [("aclose", True)]
