@@ -1082,3 +1082,27 @@ async def test_projected_item_behaves_as_a_dataclass_instance(db: Database) -> N
 
 def test_the_bare_projected_class_has_no_dataclass_fields() -> None:
     assert dataclasses.fields(_ProjectedItem) == ()  # type: ignore[arg-type]
+
+
+async def test_paginate_projected_skips_derive_and_preserves_stable_ordering(
+    db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with use_database(db):
+        query = ProjArticle.all().order_by("-views")
+        # Warm plan & SQL caches
+        warmed = await query.apaginate_as(ArticleOut, PageParams(page=1, page_size=1))
+        assert warmed.total == 4
+
+        def forbid_derive(*_args: Any, **_kwargs: Any) -> Any:
+            raise AssertionError("paginate_projected should not call QuerySet.derive")
+
+        monkeypatch.setattr(QuerySet, "derive", forbid_derive)
+        page = await query.apaginate_as(ArticleOut, PageParams(page=1, page_size=1))
+        assert page.total == 4
+        assert page.page == 1
+        assert page.page_size == 1
+        monkeypatch.undo()
+
+        # Lazy materialization still produces the stably-ordered item
+        assert [item.title for item in page.items] == ["Fourth"]
