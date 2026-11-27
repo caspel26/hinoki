@@ -501,7 +501,7 @@
           <h1 id="native-crud-phase-1-end-to-end-orientation-run">Native CRUD phase 1: end-to-end orientation run<a class="headerlink" href="#native-crud-phase-1-end-to-end-orientation-run" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 16:53:58 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 12:12:05 UTC">November 27, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -575,7 +575,7 @@ Each sample's one-minute host load is checked before its server starts and must 
 </tbody>
 </table>
 <p>The paired ratio is a descriptive ratio of the five pairwise throughput values. The samples are not a universal ranking and do not establish production performance. Host, OS, Python, server, ORM, driver, database, warm-cache state, and workload all affect these results. CV above 15% marks that scenario as unstable for interpretation; no sample is dropped.</p>
-<p>Raw <code>oha</code> JSON, per-sample start-load metadata and SQL stats, server logs, environment metadata, verifier output, request bodies, and the machine-readable summary are retained in <code>benchmarks/comparative/results/2026-11-18/crud-phase1/</code>.</p>
+<p>Raw <code>oha</code> JSON, per-sample start-load metadata and SQL stats, server logs, environment metadata, verifier output, request bodies, and the machine-readable summary are available in the <a href="https://github.com/caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/bench-2026-11-18-crud-phase1.tar.gz">2026-11-18 benchmark archive</a> (SHA-256: <code>c32ea9a982b5bc5d30cce8d79f10bc93890603cebb123d4f927f41436049a3b2</code>; <a href="https://github.com/caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/bench-2026-11-18-crud-phase1.tar.gz.sha256">checksum file</a>). The archive manifest records per-file hashes and measurement provenance.</p>
 <p>Reproduction: build the native extension in release mode, start an isolated PostgreSQL 17 container, then run <code>phase1_orientation.py</code> as documented in <code>benchmarks/README.md</code>. The script refuses to time a sample whose starting load is above 1.0.</p>
 <h2 id="supplemental-samples">Supplemental samples<a class="headerlink" href="#supplemental-samples" title="Permanent link">&para;</a></h2>
 <p>Because the initial <code>list_100</code> Hinoki CV exceeded 15%, five additional alternating pairs (6-10) were collected separately. This block is not pooled into the primary table:</p>
@@ -620,7 +620,7 @@ Each sample's one-minute host load is checked before its server starts and must 
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 16:53:58 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 12:12:05 UTC">November 27, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rust-crud-orientation.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
