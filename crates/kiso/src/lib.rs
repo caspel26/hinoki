@@ -61,4 +61,6 @@ pub use metrics::Registry;
 pub use plan::{CrudPlanSlot, InputKind, InputParam, Plan, PlanError, RoutePlan};
 pub use proxy::Networks;
 pub use queue::{InFlight, Permit, Queue};
-pub use stream::{Aborted, Chunk, Delivery, FileAnswer, FileBody, Live, Pace, Streamed};
+pub use stream::{
+    Aborted, Chunk, Delivery, FastAnswer, FileAnswer, FileBody, Live, Pace, Streamed,
+};

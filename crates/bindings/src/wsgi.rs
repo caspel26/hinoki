@@ -469,6 +469,15 @@ impl Backend for WsgiBackend {
     async fn handle(&self, request: Incoming) -> Answer {
         match self.deliver(request).await {
             Delivery::Whole(answer) => answer,
+            Delivery::Fast(fast) => Answer {
+                status: fast.status,
+                headers: fast
+                    .headers
+                    .iter()
+                    .map(|(n, v)| (n.as_str().as_bytes().to_vec(), v.as_bytes().to_vec()))
+                    .collect(),
+                body: fast.body,
+            },
             // Callers that cannot stream get the status and an empty body.
             Delivery::Streamed(Streamed {
                 status, headers, ..

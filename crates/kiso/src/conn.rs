@@ -132,7 +132,9 @@ fn incoming_of(
     } else {
         refusal_of(parts, &mut headers)
     };
-    let upgrade = if parts.version == Version::HTTP_2 {
+    let upgrade = if parts.version == Version::HTTP_2
+        || !parts.headers.contains_key(hyper::header::UPGRADE)
+    {
         Upgrade::Absent
     } else {
         ws::inspect(parts.method.as_str(), &headers)
@@ -165,6 +167,15 @@ fn parts_of(delivery: Delivery, head_only: bool) -> Result<(u16, Vec<Header>, Re
         Delivery::Whole(answer) => {
             let body = if head_only { Bytes::new() } else { answer.body };
             (answer.status, answer.headers, Reply::Whole(Full::new(body)))
+        }
+        Delivery::Fast(answer) => {
+            let body = if head_only { Bytes::new() } else { answer.body };
+            let headers = answer
+                .headers
+                .iter()
+                .map(|(n, v)| (n.as_str().as_bytes().to_vec(), v.as_bytes().to_vec()))
+                .collect();
+            (answer.status, headers, Reply::Whole(Full::new(body)))
         }
         Delivery::Streamed(Streamed {
             status,
@@ -228,6 +239,19 @@ fn response_of(
     head_only: bool,
     offer: Option<&Offer>,
 ) -> Result<Response<Reply>, String> {
+    if let (Delivery::Fast(answer), None) = (&delivery, offer) {
+        let status = StatusCode::from_u16(answer.status)
+            .ok()
+            .filter(|status| !status.is_informational())
+            .ok_or_else(|| format!("status {} cannot be sent", answer.status))?;
+        if let Delivery::Fast(answer) = delivery {
+            let body = if head_only { Bytes::new() } else { answer.body };
+            let mut response = Response::new(Reply::Whole(Full::new(body)));
+            *response.status_mut() = status;
+            *response.headers_mut() = answer.headers;
+            return Ok(response);
+        }
+    }
     let (status, headers, body) = compressed_parts(delivery, head_only, offer)?;
     let status = StatusCode::from_u16(status)
         .ok()
