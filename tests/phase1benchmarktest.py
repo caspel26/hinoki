@@ -1,6 +1,5 @@
 """Metrics helpers used by the generated CRUD orientation benchmark."""
 
-import sys
 from importlib import import_module
 from pathlib import Path
 
@@ -21,15 +20,14 @@ def test_phase1_request_count_uses_status_counts_not_sample_duration(
     assert request_count(result) == 86_765
 
 
-def test_archived_phase1_report_links_to_the_public_raw_data() -> None:
+def test_archived_phase1_report_links_to_the_public_raw_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     repository = Path(__file__).parent.parent
-    sys.path.insert(0, str(repository / "benchmarks/comparative"))
-    try:
-        orientation = import_module("phase1_orientation")
-    finally:
-        sys.path.pop(0)
+    monkeypatch.syspath_prepend(str(repository / "benchmarks/comparative"))
+    archive_refs = import_module("archive_refs")
 
-    note = orientation.raw_results_reference(
+    note = archive_refs.phase1_results_reference(
         Path("benchmarks/comparative/results/2026-11-18/crud-phase1")
     )
     archive_release = "https://github.com/caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/"

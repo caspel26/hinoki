@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from archive_refs import phase1_results_reference
 from phase1_metrics import request_count
 from phase1_seed import BASE_TITLE, BODY, FIXED_ID, seed
 
@@ -480,7 +481,7 @@ def write_report(
             "",
             "The paired ratio is a descriptive ratio of the five pairwise throughput values. The samples are not a universal ranking and do not establish production performance. Host, OS, Python, server, ORM, driver, database, warm-cache state, and workload all affect these results. CV above 15% marks that scenario as unstable for interpretation; no sample is dropped.",
             "",
-            raw_results_reference(raw_path),
+            phase1_results_reference(raw_path),
             "",
             "Reproduction: build the native extension in release mode, start an isolated PostgreSQL 17 container, then run `phase1_orientation.py` as documented in `benchmarks/README.md`. The script refuses to time a sample whose starting load is above 1.0.",
         ]
@@ -523,26 +524,6 @@ def write_report(
     report = "\n".join(lines) + "\n"
     (output / "orientation.md").write_text(report)
     (repo / "docs/rust-crud-orientation.md").write_text(report)
-
-
-def raw_results_reference(raw_path: Path) -> str:
-    if raw_path.as_posix() == "benchmarks/comparative/results/2026-11-18/crud-phase1":
-        return (
-            "Raw `oha` JSON, per-sample start-load metadata and SQL stats, server logs, "
-            "environment metadata, verifier output, request bodies, and the machine-readable "
-            "summary are available in the [2026-11-18 benchmark archive](https://github.com/"
-            "caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/"
-            "bench-2026-11-18-crud-phase1.tar.gz) (SHA-256: "
-            "`c32ea9a982b5bc5d30cce8d79f10bc93890603cebb123d4f927f41436049a3b2`; "
-            "[checksum file](https://github.com/caspel26/hinoki/releases/download/"
-            "bench-2026-11-18-crud-phase1/bench-2026-11-18-crud-phase1.tar.gz.sha256)). "
-            "The archive manifest records per-file hashes and measurement provenance."
-        )
-    return (
-        "Raw `oha` JSON, per-sample start-load metadata and SQL stats, server logs, "
-        "environment metadata, verifier output, request bodies, and the machine-readable "
-        f"summary are retained in `{raw_path}/`."
-    )
 
 
 def metadata(args: argparse.Namespace) -> dict[str, Any]:
