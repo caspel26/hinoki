@@ -470,6 +470,72 @@ impl NativeSteps {
     }
 }
 
+/// Perform only the first step of `coro` (`coro.send(None)` inside `ctx`)
+/// without allocating `Arc<Run>`, `Arc<Notify>`, or `NativeRun`.
+///
+/// Returns `(0, value)` when the coroutine finished synchronously,
+/// `(1, wait)` when it yielded a `NativeWait`, or `(2, yielded)` when it
+/// yielded a foreign awaitable. Exceptions raised by the coroutine propagate.
+#[pyfunction]
+#[pyo3(signature = (coro, ctx=None))]
+pub fn step_native_first<'py>(
+    py: Python<'py>,
+    coro: &Bound<'py, PyAny>,
+    ctx: Option<&Bound<'py, PyAny>>,
+) -> PyResult<(u8, Py<PyAny>)> {
+    match advance(py, coro, ctx, Resume::Value(py.None()))? {
+        Step::Done(value) => Ok((0, value)),
+        Step::Wait(wait) => Ok((1, wait.into_any())),
+        Step::Foreign(yielded) => Ok((2, yielded)),
+    }
+}
+
+/// Continue a coroutine whose first step already yielded `wait` (from
+/// [`step_native_first`]) on the shared Tokio runtime.
+#[pyfunction]
+#[pyo3(signature = (coro, wait, on_done, on_foreign, ctx=None, deadline_ms=None, scheduler=None))]
+#[allow(clippy::too_many_arguments)]
+pub fn continue_native(
+    py: Python<'_>,
+    coro: Py<PyAny>,
+    wait: &Bound<'_, crate::driver::NativeWait>,
+    on_done: Py<PyAny>,
+    on_foreign: Py<PyAny>,
+    ctx: Option<Py<PyAny>>,
+    deadline_ms: Option<u64>,
+    scheduler: Option<Bound<'_, PyAny>>,
+) -> NativeRun {
+    let scheduler = scheduler.map(|given| match given.cast::<NativeSteps>() {
+        Ok(steps) => Scheduler::Steps(Arc::clone(&steps.get().steps)),
+        Err(_) => Scheduler::Call(given.unbind()),
+    });
+    let stop = Arc::new(Notify::new());
+    let run = Arc::new(Run {
+        coro,
+        ctx,
+        on_done,
+        on_foreign,
+        scheduler,
+        deadline: deadline_ms.map(|ms| Instant::now() + Duration::from_millis(ms)),
+        stop: stop.clone(),
+    });
+    match wait.get().take() {
+        Some(work) => {
+            let drive = Drive {
+                run,
+                reason: None,
+                done: false,
+            };
+            handoff::spawn(drive_waits(drive, work));
+        }
+        None => {
+            let error = PyRuntimeError::new_err("a native wait was awaited twice");
+            run.finish(py, Err(error), None);
+        }
+    }
+    NativeRun { stop }
+}
+
 /// Start driving `coro`.
 ///
 /// `on_done(value, error, reason)` runs exactly once, on whichever thread

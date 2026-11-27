@@ -241,6 +241,16 @@ def run_native(
     deadline_ms: int | None = None,
     scheduler: Callable[[Any], Any] | _NativeSteps | None = None,
 ) -> _NativeRun: ...
+def step_native_first(coro: Any, ctx: Any = None) -> tuple[int, Any]: ...
+def continue_native(
+    coro: Any,
+    wait: Any,
+    on_done: Callable[[Any, BaseException | None, str | None], None],
+    on_foreign: Callable[[Any, Any, Any, float | None, str | None], None],
+    ctx: Any = None,
+    deadline_ms: int | None = None,
+    scheduler: Callable[[Any], Any] | _NativeSteps | None = None,
+) -> _NativeRun: ...
 def handoff_batch[T](body: Callable[[], T]) -> T: ...
 
 class _ClaimsAuth:
@@ -661,6 +671,8 @@ class PreparedRequest:
     @property
     def native_handler(self) -> bool: ...
     @property
+    def has_native_args(self) -> bool: ...
+    @property
     def native_args(self) -> dict[str, object]: ...
     @property
     def native_principal(self) -> tuple[str, list[str], dict[str, Any]] | None: ...
@@ -692,7 +704,7 @@ class PreparedRequest:
     def respond_final_json(
         self,
         status: int,
-        headers: list[tuple[bytes, bytes]],
+        headers: list[tuple[bytes, bytes]] | None,
         value: object,
         strict: bool = False,
     ) -> bool: ...
