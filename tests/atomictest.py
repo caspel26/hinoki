@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import Hinoki, RouteGroup, Schema, Transactions, context, db, errors, http
+from hinoki import Hinoki, RouteGroup, Schema, context, db, errors, http
 from hinoki.blocking import run_sync
 from hinoki.db import Database, DatabaseModule, current
 from hinoki.orm import current_database, use_database
-from hinoki.rules import Project, RuleSet
+from hinoki.rules import Project, RuleSet, Transactions
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.sessions import (
     MemorySessionStore,

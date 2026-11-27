@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import Hinoki, Imports
+from hinoki import Hinoki
 from hinoki.imports import absolute, within
-from hinoki.rules import Phase, Project, RuleSet, Status
+from hinoki.rules import Imports, Phase, Project, RuleSet, Status
 
 
 def write(root: Path, name: str, text: str) -> None:

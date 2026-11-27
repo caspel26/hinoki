@@ -10,10 +10,10 @@ from typing import Annotated, Any
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import UNSET, Field, Hinoki, Schema, Schemas, Unset, http
+from hinoki import UNSET, Field, Hinoki, Schema, Unset, http
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.orm import Model, field
-from hinoki.rules import Project, RuleSet
+from hinoki.rules import Project, RuleSet, Schemas
 from hinoki.schema import encode
 from hinoki.testing import ASGIClient
 

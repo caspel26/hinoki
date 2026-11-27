@@ -8,6 +8,12 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### 💥 Breaking Changes
 
+#### 📦 Move rule families to `hinoki.rules`
+> `python/hinoki/__init__.py`, `python/hinoki/scaffold.py`, `README.md`, `docs/rules.md`, `docs/transactions.md`, `docs/tutorial/5-rules.md`, `docs/tutorial/8-projects.md`, `examples/blog/blog/rules.py`, `examples/tracker/tracker/rules.py`, `examples/mailroom/mailroom/rules.py`, `tests/publicapicontracttest.py`, `tests/rulestest.py`, `tests/atomictest.py`, `tests/autoloadtest.py`, `tests/checkclitest.py`, `tests/importrulestest.py`, `tests/projects/rulesapp.py`, `tests/schemacollectionstest.py`, `tests/schemaenumstest.py`, `tests/schemaunionstest.py`
+
+Removed the top-level `hinoki.Actions`, `hinoki.Imports`, `hinoki.Models`, `hinoki.Schemas` and `hinoki.Transactions` exports. Import the module with `from hinoki import rules` and use `rules.Actions`, `rules.Transactions`, etc., or import specific names from `hinoki.rules`.
+
+
 #### 🗺️ Explicit project route map and removal of `[[apps]] routes` / `prefix`
 > `python/hinoki/project.py`, `python/hinoki/scaffold.py`, `python/hinoki/cli/project.py`, `docs/routes.md`, `docs/cli.md`
 

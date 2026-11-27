@@ -115,19 +115,19 @@ uv run pytest
 ```
 
 `notes/rules.py` keeps two model rules commented out:
-`Models.require_explicit_table` and `Models.require_foreign_key_index`.
+`rules.Models.require_explicit_table` and `rules.Models.require_foreign_key_index`.
 `hinoki check` imports the models of every `[[apps]]` entry, so a project with
 no model at all would report them as `unverifiable`, which fails the check.
-Now that billing has `Invoice`, turn them on (and import `Models`):
+Now that billing has `Invoice`, turn them on:
 
 ```python
 # notes/rules.py (excerpt)
-from hinoki import Actions, Models, Schemas, Transactions
+from hinoki import rules
 
-project_rules = RuleSet(
+project_rules = rules.RuleSet(
     # …the rules the scaffold wrote…
-    Models.require_explicit_table(match="notes.*"),
-    Models.require_foreign_key_index(match="notes.*"),
+    rules.Models.require_explicit_table(match="notes.*"),
+    rules.Models.require_foreign_key_index(match="notes.*"),
 )
 ```
 
