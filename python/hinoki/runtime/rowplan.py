@@ -349,6 +349,24 @@ def _queryset_state(query: object) -> dict[str, Any] | None:
         return None
 
 
+def _matches_base_filters(selection: RowWireSelection, filters: object) -> bool:
+    if type(filters) is not tuple:
+        return False
+    scope = selection.resource.row_scope
+    if scope is None:
+        return filters == selection.base_filters
+    base = selection.base_filters
+    if len(filters) != len(base) + 1 or filters[: len(base)] != base:
+        return False
+    added = filters[-1]
+    return (
+        plain_filter(added)
+        and added[0] == scope.column
+        and added[1] == "eq"
+        and len(added[2]) == 1
+    )
+
+
 def valid_base_query(
     selection: RowWireSelection, query: object
 ) -> TypeGuard[QuerySet[Any]]:
@@ -358,7 +376,7 @@ def valid_base_query(
         return False
     expected = default_order(selection.model)
     return (
-        attributes["filters"] == selection.base_filters
+        _matches_base_filters(selection, attributes["filters"])
         and attributes["implicit_filter_count"] == selection.base_implicit_filters
     ) and valid_query_state(selection, query, order=expected, limit=None, offset=None)
 
@@ -466,7 +484,6 @@ def is_generated_list(binding: Binding, owner: type | None) -> bool:
         and handler.__name__ == "list"
         and getattr(handler, GENERATED, False)
         and binding.route.method == "GET"
-        and binding.route.access is None
         and not binding.route.atomic
     )
 
@@ -476,7 +493,13 @@ def is_plain_binding(binding: Binding) -> bool:
     return (
         binding.takes_request
         and not binding.needs_body
-        and sources in {("page",), ("page", "filters")}
+        and sources
+        in {
+            ("page",),
+            ("page", "filters"),
+            ("page", "principal"),
+            ("page", "filters", "principal"),
+        }
         and binding.params[0].strategy is not None
     )
 
@@ -488,10 +511,7 @@ def is_plain_resource(
         type(owner) is type
         and type(resource) is _CrudConfig
         and owner_is_plain(owner)
-        and resource.access_for("list") is None
-        and resource.access_for("retrieve") is None
-        and not resource.owner
-        and not resource.assign
+        and not resource.link_fields(resource.read)
     )
 
 
