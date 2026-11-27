@@ -47,22 +47,29 @@ jobs:
       - name: Resolve revisions and prepare worktrees
         id: prep
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_SHA_VAL: ${{ github.sha }}
+          INPUT_BASE_REF: ${{ inputs.base_ref }}
+          INPUT_CAND_REF: ${{ inputs.cand_ref }}
         run: |
           set -euo pipefail
           ART_DIR="$RUNNER_TEMP/bench-artifacts"
           mkdir -p "$ART_DIR"
           ZERO_SHA="0000000000000000000000000000000000000000"
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            CAND_SHA="${{ github.sha }}"
-          elif [[ "${{ github.event_name }}" == "push" ]]; then
-            BASE_SHA="${{ github.event.before }}"
-            CAND_SHA="${{ github.sha }}"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            BASE_SHA="$PR_BASE_SHA"
+            CAND_SHA="$GITHUB_SHA_VAL"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            BASE_SHA="$PUSH_BEFORE_SHA"
+            CAND_SHA="$GITHUB_SHA_VAL"
           else
-            CAND_REF="${{ inputs.cand_ref }}"
-            CAND_SHA="$(git rev-parse "${CAND_REF:-${{ github.sha }}}")"
-            BASE_REF="${{ inputs.base_ref }}"
+            CAND_REF="$INPUT_CAND_REF"
+            CAND_SHA="$(git rev-parse "${CAND_REF:-$GITHUB_SHA_VAL}")"
+            BASE_REF="$INPUT_BASE_REF"
             if [[ -n "$BASE_REF" ]]; then
               BASE_SHA="$(git rev-parse "$BASE_REF")"
             else
@@ -103,6 +110,9 @@ jobs:
         id: build
         if: steps.prep.outputs.valid == 'true'
         shell: bash
+        env:
+          BASE_SHA: ${{ steps.prep.outputs.base_sha }}
+          CAND_SHA: ${{ steps.prep.outputs.cand_sha }}
         run: |
           set -euo pipefail
           ART_DIR="$RUNNER_TEMP/bench-artifacts"
@@ -116,7 +126,7 @@ jobs:
               uv run --locked --with maturin maturin develop --release --manifest-path crates/bindings/Cargo.toml
             ) || {
               printf '{"schema_version":1,"status":"invalid","error":"Build failed for %s","base_sha":"%s","cand_sha":"%s"}\n' \
-                "$label" "${{ steps.prep.outputs.base_sha }}" "${{ steps.prep.outputs.cand_sha }}" > "$ART_DIR/benchmark-report.json"
+                "$label" "$BASE_SHA" "$CAND_SHA" > "$ART_DIR/benchmark-report.json"
               printf '## Hinoki Benchmark Comparison: **INVALID** (informational)\n\n> **Reason:** Build failed for %s.\n' \
                 "$label" > "$ART_DIR/benchmark-summary.md"
               echo "built=false" >> "$GITHUB_OUTPUT"
@@ -131,6 +141,9 @@ jobs:
       - name: Run paired benchmark comparison
         if: steps.prep.outputs.valid == 'true' && steps.build.outputs.built == 'true'
         shell: bash
+        env:
+          BASE_SHA: ${{ steps.prep.outputs.base_sha }}
+          CAND_SHA: ${{ steps.prep.outputs.cand_sha }}
         run: |
           set -euo pipefail
           ART_DIR="$RUNNER_TEMP/bench-artifacts"
@@ -138,8 +151,8 @@ jobs:
             --base-python "$RUNNER_TEMP/base/.venv/bin/python" \
             --cand-python "$RUNNER_TEMP/cand/.venv/bin/python" \
             --bench-script "$RUNNER_TEMP/cand/benchmarks/ci_bench.py" \
-            --base-sha "${{ steps.prep.outputs.base_sha }}" \
-            --cand-sha "${{ steps.prep.outputs.cand_sha }}" \
+            --base-sha "$BASE_SHA" \
+            --cand-sha "$CAND_SHA" \
             --rounds 5 \
             --seconds 2.0 \
             --warmup 0.5 \
