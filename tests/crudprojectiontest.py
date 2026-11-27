@@ -1,4 +1,4 @@
-"""Regression tests for CRUD list/retrieve Rust projection and custom hooks."""
+"""Regression tests for scoped CRUD row-wire parity and custom hooks."""
 
 from __future__ import annotations
 
@@ -6,9 +6,11 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Annotated, Any, ClassVar
 
-from hinoki import API, Access, Hinoki, RowScope, RuntimeConfig, Schema, crud
+import pytest
+
+from hinoki import API, Access, Field, Hinoki, RowScope, RuntimeConfig, Schema, crud
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.db import Database, DatabaseModule
 from hinoki.modules import Module, ModuleContext
@@ -26,6 +28,12 @@ class ProjItemOut(Schema):
     id: int
     tenant_id: str
     title: str
+
+
+class ConstrainedItemOut(Schema):
+    id: int
+    tenant_id: str
+    title: Annotated[str, Field(min_length=3)]
 
 
 class _Seed(Module):
@@ -66,8 +74,8 @@ def _make_auth() -> tuple[ClaimsJWTAuth, str]:
     return auth, f"Bearer {token}"
 
 
-async def test_default_crud_list_and_retrieve_project_with_row_scope(
-    tmp_path: Path,
+async def test_scoped_crud_list_arms_row_wire_and_enforces_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     auth, bearer = _make_auth()
     resource = crud(
@@ -85,6 +93,22 @@ async def test_default_crud_list_and_retrieve_project_with_row_scope(
         docs_url=None,
         redoc_url=None,
     )
+    list_bindings = [
+        b for b in app.bindings if b.route.method == "GET" and b.route.path == "/items"
+    ]
+    assert len(list_bindings) == 1
+    assert list_bindings[0].row_wire is not None
+
+    wire_calls: list[bool] = []
+    orig_fetch = Database._fetch_page_wire
+
+    async def spy_fetch(self: Database, *args: Any, **kwargs: Any) -> Any:
+        result = await orig_fetch(self, *args, **kwargs)
+        wire_calls.append(isinstance(result, bytes))
+        return result
+
+    monkeypatch.setattr(Database, "_fetch_page_wire", spy_fetch)
+
     headers = {"authorization": bearer}
     async with ASGIClient(app) as client:
         listed = await client.get(
@@ -94,6 +118,7 @@ async def test_default_crud_list_and_retrieve_project_with_row_scope(
         body = listed.body
         assert body["total"] == 2
         assert [row["title"] for row in body["items"]] == ["alpha", "beta"]
+        assert wire_calls == [True]
 
         found = await client.get("/items/1", headers=headers)
         assert found.status == 200
@@ -101,6 +126,45 @@ async def test_default_crud_list_and_retrieve_project_with_row_scope(
 
         hidden = await client.get("/items/3", headers=headers)
         assert hidden.status == 404
+
+
+async def test_scoped_row_wire_incompatible_stored_row_is_500(
+    tmp_path: Path,
+) -> None:
+    auth, bearer = _make_auth()
+    db_path = tmp_path / "invalid_row.sqlite3"
+    db_url = f"sqlite://{db_path}"
+    resource = crud(
+        ProjItem,
+        path="/items",
+        read=ConstrainedItemOut,
+        access=Access(auth=auth),
+        scope=RowScope.by_claim(ProjItem, "tenant_id", "tenant_id"),
+    )
+    app = Hinoki(
+        runtime=RuntimeConfig(),
+        include=[resource],
+        modules=[DatabaseModule(db_url), _Seed()],
+        openapi_url=None,
+        docs_url=None,
+        redoc_url=None,
+    )
+    headers = {"authorization": bearer}
+    async with ASGIClient(app) as client:
+        db = await Database.connect(db_url)
+        try:
+            await db.execute(
+                "insert into proj_crud_items (id, tenant_id, title) values (?, ?, ?)",
+                4,
+                "t-a",
+                "x",  # violates Field(min_length=3) on ProjItemOut
+            )
+        finally:
+            db.close()
+        listed = await client.get(
+            "/items", query="page=1&page_size=10", headers=headers
+        )
+        assert listed.status == 500
 
 
 async def test_custom_to_schema_hook_is_not_bypassed(tmp_path: Path) -> None:
@@ -131,6 +195,14 @@ async def test_custom_to_schema_hook_is_not_bypassed(tmp_path: Path) -> None:
         docs_url=None,
         redoc_url=None,
     )
+    list_bindings = [
+        b
+        for b in app.bindings
+        if b.route.method == "GET" and b.route.path == "/custom-items"
+    ]
+    assert len(list_bindings) == 1
+    assert list_bindings[0].row_wire is None
+
     headers = {"authorization": bearer}
     async with ASGIClient(app) as client:
         listed = await client.get(
