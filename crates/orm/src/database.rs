@@ -13,6 +13,7 @@ use tokio_postgres_rustls::MakeRustlsConnect;
 
 use crate::error::{lease_released, DbError, ErrorKind};
 use crate::mysql::{MysqlLease, MysqlPool};
+use crate::pgrows::{extract_pg_count, PgRows};
 use crate::sqlite::{connect_path, SqliteLease, SqlitePool};
 use crate::tls::{connector, extract_options};
 use crate::value::Value;
@@ -150,7 +151,10 @@ fn decode(row: &tokio_postgres::Row) -> Result<Row, DbError> {
         .collect()
 }
 
-fn decode_values(row: &tokio_postgres::Row, types: &[&Type]) -> Result<Vec<Value>, DbError> {
+pub(crate) fn decode_values(
+    row: &tokio_postgres::Row,
+    types: &[&Type],
+) -> Result<Vec<Value>, DbError> {
     types
         .iter()
         .enumerate()
@@ -276,6 +280,136 @@ async fn run_fetch(conn: &Object, sql: &str, values: &[Value]) -> Result<Vec<Row
     rows.iter().map(decode).collect()
 }
 
+async fn run_fetch_pg(conn: &Object, sql: &str, values: &[Value]) -> Result<PgRows, DbError> {
+    let stmt = conn
+        .prepare_cached(sql)
+        .await
+        .map_err(|e| DbError::from_driver(&e))?;
+    let raw_rows = conn
+        .query(&stmt, &params(values))
+        .await
+        .map_err(|e| DbError::from_driver(&e))?;
+    Ok(PgRows::new(raw_rows))
+}
+
+async fn fetch_pg_with_recovery(
+    conn: &Object,
+    sql: &str,
+    values: &[Value],
+) -> Result<PgRows, DbError> {
+    match run_fetch_pg(conn, sql, values).await {
+        Err(err) if is_stale_plan(&err) => {
+            conn.statement_cache.remove(sql, &[]);
+            run_fetch_pg(conn, sql, values).await
+        }
+        other => other,
+    }
+}
+
+async fn run_fetch_pg_pair(
+    conn: &Object,
+    a: (&str, &[Value]),
+    b: (&str, &[Value]),
+) -> Result<(PgRows, PgRows), DbError> {
+    let stmt_a = conn
+        .prepare_cached(a.0)
+        .await
+        .map_err(|e| DbError::from_driver(&e))?;
+    let stmt_b = conn
+        .prepare_cached(b.0)
+        .await
+        .map_err(|e| DbError::from_driver(&e))?;
+    let pa = params(a.1);
+    let pb = params(b.1);
+    // Use `tokio::join!` (not `try_join!`) so both pipelined responses drain to
+    // ReadyForQuery on the wire before inspecting errors. If the outer future is
+    // dropped/cancelled mid-flight, `Lease::drop` cancels and discards the conn.
+    let (res_a, res_b) = tokio::join!(conn.query(&stmt_a, &pa), conn.query(&stmt_b, &pb));
+    let err_a = res_a.as_ref().err().map(DbError::from_driver);
+    let err_b = res_b.as_ref().err().map(DbError::from_driver);
+    let stale_a = err_a.as_ref().is_some_and(is_stale_plan);
+    let stale_b = err_b.as_ref().is_some_and(is_stale_plan);
+    if stale_a || stale_b {
+        if stale_a {
+            conn.statement_cache.remove(a.0, &[]);
+        }
+        if stale_b {
+            conn.statement_cache.remove(b.0, &[]);
+        }
+        let rows_a = fetch_pg_with_recovery(conn, a.0, a.1).await?;
+        let rows_b = fetch_pg_with_recovery(conn, b.0, b.1).await?;
+        return Ok((rows_a, rows_b));
+    }
+    if let Some(err) = err_a.or(err_b) {
+        return Err(err);
+    }
+    Ok((
+        PgRows::new(res_a.unwrap_or_default()),
+        PgRows::new(res_b.unwrap_or_default()),
+    ))
+}
+
+/// One pooled PostgreSQL connection held for a multi-query read operation
+/// (such as a paginated page plus its prefetches).
+///
+/// Only calling [`PgSession::release`] returns the connection to the pool; any
+/// early return on error or future cancellation drops the inner [`Lease`],
+/// which sends a cancel request and discards the connection so the pool never
+/// receives a dirty or in-flight connection.
+pub struct PgSession {
+    lease: Lease,
+    #[cfg(feature = "sql-trace")]
+    trace: SqlTrace,
+}
+
+impl PgSession {
+    pub async fn fetch_pg(&self, sql: &str, values: &[Value]) -> Result<PgRows, DbError> {
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("fetch", sql, values);
+        fetch_pg_with_recovery(self.lease.get()?, sql, values).await
+    }
+
+    pub async fn fetch_pg_pair(
+        &self,
+        a: (&str, &[Value]),
+        b: (&str, &[Value]),
+    ) -> Result<(PgRows, PgRows), DbError> {
+        #[cfg(feature = "sql-trace")]
+        {
+            self.trace.record("fetch", a.0, a.1);
+            self.trace.record("fetch", b.0, b.1);
+        }
+        run_fetch_pg_pair(self.lease.get()?, a, b).await
+    }
+
+    pub async fn fetch_pg_page(
+        &self,
+        queries: &PageQueries<'_>,
+        concurrent: bool,
+    ) -> Result<(PgRows, i64), DbError> {
+        if concurrent {
+            let (count_rows, rows) = self
+                .fetch_pg_pair(
+                    (queries.count_sql, queries.count_params),
+                    (queries.rows_sql, queries.rows_params),
+                )
+                .await?;
+            return Ok((rows, extract_pg_count(&count_rows)?));
+        }
+        let count_rows = self
+            .fetch_pg(queries.count_sql, queries.count_params)
+            .await?;
+        let total = extract_pg_count(&count_rows)?;
+        let rows = self.fetch_pg(queries.rows_sql, queries.rows_params).await?;
+        Ok((rows, total))
+    }
+
+    /// Return the clean connection to the pool after all queries succeeded.
+    pub fn release(self) {
+        self.lease.release();
+    }
+}
+
 async fn run_fetch_set(conn: &Object, sql: &str, values: &[Value]) -> Result<RowSet, DbError> {
     let stmt = conn
         .prepare_cached(sql)
@@ -376,7 +510,7 @@ async fn execute_with_recovery(conn: &Object, sql: &str, values: &[Value]) -> Re
 }
 
 /// A finite `numeric` as its decimal text, scale kept; NaN and infinity are refused.
-struct PgNumeric(String);
+pub(crate) struct PgNumeric(pub(crate) String);
 
 impl<'a> FromSql<'a> for PgNumeric {
     fn from_sql(
@@ -395,7 +529,7 @@ impl<'a> FromSql<'a> for PgNumeric {
 
 /// A finite `timestamptz`. PostgreSQL sends `infinity`/`-infinity` as the i64
 /// extremes; they are refused instead of decoding to far-future instants.
-struct PgTimestamp(time::OffsetDateTime);
+pub(crate) struct PgTimestamp(pub(crate) time::OffsetDateTime);
 
 impl<'a> FromSql<'a> for PgTimestamp {
     fn from_sql(
@@ -580,11 +714,30 @@ impl Database {
         outcome
     }
 
+    /// Acquire a single PostgreSQL connection for pipelined/reused reads.
+    /// Returns `Ok(None)` for SQLite and MySQL backends.
+    pub async fn acquire_pg(&self) -> Result<Option<PgSession>, DbError> {
+        if !matches!(&self.backend, DatabaseBackend::Postgres { .. }) {
+            return Ok(None);
+        }
+        let lease = self.acquire().await?;
+        Ok(Some(PgSession {
+            lease,
+            #[cfg(feature = "sql-trace")]
+            trace: self.trace.clone(),
+        }))
+    }
+
     pub async fn fetch_page_set(
         &self,
         queries: &PageQueries<'_>,
         concurrent: bool,
     ) -> Result<(RowSet, i64), DbError> {
+        if let Some(session) = self.acquire_pg().await? {
+            let (rows, total) = session.fetch_pg_page(queries, concurrent).await?;
+            session.release();
+            return Ok((rows.to_row_set()?, total));
+        }
         if concurrent && self.supports_concurrent_reads() {
             let (count_set, rows) = tokio::try_join!(
                 self.fetch_set(queries.count_sql, queries.count_params),
