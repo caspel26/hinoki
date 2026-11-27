@@ -58,6 +58,13 @@ STACKS = {
 STACK_ORDER = list(STACKS)
 GRANIAN_KEYS = ("hinoki", "hinoki-granian")
 KISO_KEY = "hinoki-kiso"
+ARCHIVED_RESULTS = {
+    "2026-11-25": (
+        "[the archived raw results](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/bench-2026-11-25.tar.gz) "
+        "(SHA-256: `0db26f6e288a42f9532f9aad3e927e28690386ce0f262ee3ed1b456a4f32d7d5`; "
+        "[checksum file](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/bench-2026-11-25.tar.gz.sha256))"
+    ),
+}
 # Django Bolt's seven routes in its order: no database first, then the database
 # and finally the routes behind the JWT cookie.
 SCENARIOS = [
@@ -1095,7 +1102,13 @@ def method_section(directories: list[Path], first_env: JSONData) -> str:
     ]
     locations = ", ".join(
         sorted(
-            {f"`benchmarks/comparative/results/{d.parent.name}/`" for d in directories}
+            {
+                ARCHIVED_RESULTS.get(
+                    result_date(d),
+                    f"`benchmarks/comparative/results/{result_date(d)}/`",
+                )
+                for d in directories
+            }
         )
     )
     kiso = any(
@@ -1147,6 +1160,17 @@ def method_section(directories: list[Path], first_env: JSONData) -> str:
                 "Setup details, the database container and the rules for repeating an unstable scenario are in `benchmarks/comparative/README.md`.",
             ),
         ]
+    )
+
+
+def result_date(directory: Path) -> str:
+    return next(
+        (
+            parent.name
+            for parent in (directory, *directory.parents)
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", parent.name)
+        ),
+        directory.parent.name,
     )
 
 

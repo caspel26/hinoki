@@ -120,17 +120,17 @@ If a route's sample CV exceeds 15%, inspect host variance and repeat that route 
 
 Exact package versions, the source commit and dirty status, the CPU model, the load average when the run started and every setting are written to `environment.json`; each raw `bombardier` result (`{stack}-{scenario}-r{start}-{n}.json`) is kept next to the report, with the server log, the verifier output and the worker CPU times of every start.
 
-`results/2026-11-18/crud-phase1/` is the separate generated-CRUD orientation run documented in `benchmarks/README.md`. `results/2026-11-23/` contains an earlier posts-service run (`health`, `json-1k`, `json-10k`, `list`, `detail`, `create`, pool 10, PostgreSQL 17); `report.py` no longer reads those scenarios, and this is not the current public page. `schema.sql`, `seed.py`, `hinoki_app.py`, `ninja_app.py`, `dj_settings.py` and `benchapp/` belong to that earlier service and remain for the experiments in `benchmarks/README.md`.
+`results/2026-11-23/` contains an earlier posts-service run (`health`, `json-1k`, `json-10k`, `list`, `detail`, `create`, pool 10, PostgreSQL 17); `report.py` no longer reads those scenarios, and this is not the current public page. `schema.sql`, `seed.py`, `hinoki_app.py`, `ninja_app.py`, `dj_settings.py` and `benchapp/` belong to that earlier service and remain for the experiments in `benchmarks/README.md`.
 
 The retained comparative data serves these outputs and experiments:
 
 * `results/2026-11-24/` supplies the compact Hinoki-only report card in `theme/home.html`.
-* `results/2026-11-25/` is the current full comparative report in `docs/benchmarks.md`; its `w8/` results are nested inside this date directory.
+* The 2026-11-25 full comparative report in `docs/benchmarks.md` was generated from the [archived raw results](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/bench-2026-11-25.tar.gz) (SHA-256: `0db26f6e288a42f9532f9aad3e927e28690386ce0f262ee3ed1b456a4f32d7d5`; [checksum file](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/bench-2026-11-25.tar.gz.sha256)).
 * `results/2026-11-23/` is the earlier posts-service run described above and is kept as historical data.
 
-The separate CRUD orientation data remains at `results/2026-11-18/crud-phase1/`. Its reproduction instructions are in `benchmarks/README.md` and `docs/rust-crud-orientation.md`.
+The separate generated-CRUD orientation run from 2026-11-18 is also archived ([raw results](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/bench-2026-11-18-crud-phase1.tar.gz), SHA-256: `c32ea9a982b5bc5d30cce8d79f10bc93890603cebb123d4f927f41436049a3b2`; [checksum file](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/bench-2026-11-18-crud-phase1.tar.gz.sha256)). Its reproduction instructions are in `benchmarks/README.md` and `docs/rust-crud-orientation.md`.
 
-* `results/2026-11-23/`: historical earlier-service data, no longer read by `report.py`; Linux 7.0.0, AMD EPYC-Milan (Hetzner Cloud CCX33,
+`results/2026-11-23/` contains historical earlier-service data, no longer read by `report.py`: Linux 7.0.0, AMD EPYC-Milan (Hetzner Cloud CCX33,
   8 dedicated vCPUs, 4 cores with 2 threads each, 32 GB, Helsinki),
   `bombardier` v1.2.6, PostgreSQL 17 in a container on the same machine. The
   server ran on CPUs 0 to 3 and the load generator on CPUs 4 to 7 (the
