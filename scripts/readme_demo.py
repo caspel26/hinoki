@@ -194,7 +194,7 @@ class PostIn(Schema):
 class PostOut(Schema): ...
 
 
-posts = RouteGroup(access=editors, atomic=True)
+posts = RouteGroup(access=editors)
 
 
 @posts.post("/", status=201)
@@ -202,11 +202,21 @@ async def create_post(data: PostIn) -> PostOut:
     return PostOut.from_model(await Post.acreate(data))
 """
 
-ROUTES = f'''"""Routes of the posts app, mounted at /posts by hinoki.toml."""
+ROUTES = f'''"""Routes of the posts app, mounted at /posts in {PROJECT}/routes.py."""
 
 from {PROJECT}.apps.posts.api import posts
 
 routes = [posts]
+'''
+
+PROJECT_ROUTES = f'''"""The project's route map."""
+
+from hinoki import Includable, Mount
+
+from {PROJECT}.api import health
+from {PROJECT}.apps.{APP}.routes import routes as posts_routes
+
+routes: list[Includable] = [health, Mount("/{APP}", posts_routes)]
 '''
 APP_DIR = f"{PROJECT}/apps/{APP}"
 TOKEN = "demo-token"  # noqa: S105 - accepted only by the throw-away app
@@ -601,12 +611,13 @@ def replace_first(keys: list[Key], **changes: Any) -> list[Key]:
 
 
 def write_app(project: Path) -> None:
-    """Fill in the posts app ``hinoki new`` created."""
+    """Fill in the posts app ``hinoki new`` created and mount it."""
     package = project / APP_DIR
     (package / "access.py").write_text(ACCESS)
     (package / "models.py").write_text(MODEL)
     (package / "api.py").write_text(API)
     (package / "routes.py").write_text(ROUTES)
+    (project / PROJECT / "routes.py").write_text(PROJECT_ROUTES)
 
 
 def offscreen(argv: list[str], cwd: Path, env: dict[str, str]) -> None:
@@ -654,10 +665,24 @@ def create_project(session: Session, workdir: Path) -> Path:
 
 
 def check_rules(session: Session, project: Path) -> None:
-    """``hinoki check`` passes on the project and its app."""
+    """Show ``hinoki check`` flagging missing ``atomic=True``, then passing."""
     # From here to the request everything fits on one screen: no scrolling.
     session.run(Scene(["clear"], hold_ms=200), project)
-    session.run(Scene(["hinoki", "check"], hold_ms=1800), project)
+    session.run(Scene(["hinoki", "check"], status=1, hold_ms=4200), project)
+    expect(session, "HNK-TXN-001", "atomic=True", "1 violated")
+    fix_script = (
+        f"from pathlib import Path; p = Path('{APP_DIR}/api.py'); "
+        "p.write_text(p.read_text().replace("
+        "'access=editors)', 'access=editors, atomic=True)'))"
+    )
+    shown_fix = (
+        f"sed -i 's/access=editors)/access=editors, atomic=True)/' {APP_DIR}/api.py"
+    )
+    session.run(
+        Scene(["python3", "-c", fix_script], shown=shown_fix, hold_ms=900),
+        project,
+    )
+    session.run(Scene(["hinoki", "check"], status=0, hold_ms=2000), project)
     expect(session, "0 violated")
 
 
