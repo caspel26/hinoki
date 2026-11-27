@@ -501,7 +501,7 @@
           <h1 id="run-writes-in-transactions">Run writes in transactions<a class="headerlink" href="#run-writes-in-transactions" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:41:24 UTC">November 26, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 11:16:06 UTC">November 27, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -542,16 +542,15 @@ the returned value against the response annotation before encoding it (see
 <p>Session persistence (<code>Session.commit()</code>) runs after the handler and its <code>atomic=True</code> SQL transaction have committed, so a session store write failure happens in a separate boundary after the SQL commit. Do not send email, write local files, or perform another irreversible side effect inside the transaction; arrange it after the transaction commits, or use an outbox owned by the application.</p>
 <p><code>RouteGroup(..., atomic=True)</code> makes <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code> atomic
 by default; <code>GET</code> actions are not. An action opts out with <code>atomic=False</code>.</p>
-<p>A project created with <code>hinoki new</code> enforces <code>Transactions.require_atomic()</code>
+<p>A project created with <code>hinoki new</code> enforces <code>rules.Transactions.require_atomic()</code>
 (<code>HNK-TXN-001</code>), so a write that opts out stops <code>hinoki check</code> and startup until
 you record the decision. List the action in <code>except_</code> in <code>notes/rules.py</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/rules.py, listed in `rules` of hinoki.toml</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Transactions</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">rules</span>
 
-<span class="n">project_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
+<span class="n">project_rules</span> <span class="o">=</span> <span class="n">rules</span><span class="o">.</span><span class="n">RuleSet</span><span class="p">(</span>
     <span class="c1"># ... the other rules</span>
-    <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"notes.apps.billing.api.remind"</span><span class="p">]),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"notes.apps.billing.api.remind"</span><span class="p">]),</span>
 <span class="p">)</span>
 </code></pre></div>
 <p>A temporary exception goes in <code>hinoki-rules.toml</code> instead (<a href="../rules/#accept-an-exception-with-a-waiver">waivers</a>).</p>
@@ -611,7 +610,7 @@ you record the decision. List the action in <code>except_</code> in <code>notes/
 </code></pre></div>
 <p>A child task cannot share its parent's active transaction: opening a nested scope from another task raises <code>DatabaseError</code>.</p>
 <h3 id="decorated-functions-and-routes">Decorated functions and routes<a class="headerlink" href="#decorated-functions-and-routes" title="Permanent link">&para;</a></h3>
-<p>A function decorated with <code>@db.atomic</code> can also be a route handler (put the HTTP decorator outermost). Binding, OpenAPI and the native server see the original signature, and the handler runs inside its own atomic scope. That scope covers the handler call only: it commits when the handler returns, before the response is encoded. <code>atomic=True</code> on the action is the declaration that also covers response encoding, and it is what <code>HNK-TXN-001</code> (<code>Transactions.require_atomic</code>) reads: the rule does not inspect decorators, so an action that is only decorated with <code>@db.atomic</code> is still reported. Prefer <code>atomic=True</code> on actions and keep <code>db.atomic</code> for application code that the action calls.</p>
+<p>A function decorated with <code>@db.atomic</code> can also be a route handler (put the HTTP decorator outermost). Binding, OpenAPI and the native server see the original signature, and the handler runs inside its own atomic scope. That scope covers the handler call only: it commits when the handler returns, before the response is encoded. <code>atomic=True</code> on the action is the declaration that also covers response encoding, and it is what <code>HNK-TXN-001</code> (<code>rules.Transactions.require_atomic</code>) reads: the rule does not inspect decorators, so an action that is only decorated with <code>@db.atomic</code> is still reported. Prefer <code>atomic=True</code> on actions and keep <code>db.atomic</code> for application code that the action calls.</p>
 <p>On the native server lane, a handler is still Python code: Rust calls the Python function, so a <code>@db.atomic</code> function behaves exactly as on the Python pipeline, including the rollback when it raises.</p>
 <h2 id="after-commit-callbacks">After-commit callbacks<a class="headerlink" href="#after-commit-callbacks" title="Permanent link">&para;</a></h2>
 <p><code>Database.after_commit(callback)</code> (for example <code>current_database().after_commit(...)</code>) registers a sync or async callable without arguments to run after the outermost transaction commits, which is where email, queue publishing and cache invalidation belong. Callbacks run in registration order; a rollback of the transaction, or of the savepoint scope that registered them, drops them, and an exception in one is logged without undoing the commit. Calling it outside a transaction raises <code>DatabaseError</code>. Model hooks register through <code>self.after_commit(callback)</code>; see <a href="../model-hooks/">lifecycle hooks</a>.</p>
@@ -634,7 +633,7 @@ you record the decision. List the action in <code>except_</code> in <code>notes/
 </ul>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../rules/">Rules</a>: <code>Transactions.require_atomic</code> makes atomic writes a checked promise.</li>
+<li><a href="../rules/">Rules</a>: <code>rules.Transactions.require_atomic</code> makes atomic writes a checked promise.</li>
 <li><a href="../model-hooks/">Lifecycle hooks</a>: <code>self.after_commit</code> in model hooks.</li>
 <li><a href="../sync-async/">Sync and async</a></li>
 </ul>
@@ -668,7 +667,7 @@ you record the decision. List the action in <code>except_</code> in <code>notes/
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:41:24 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 11:16:06 UTC">November 27, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/transactions.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

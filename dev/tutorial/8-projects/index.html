@@ -261,7 +261,7 @@
           <h1 id="9-projects-and-apps">9. Projects and apps<a class="headerlink" href="#9-projects-and-apps" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 10:03:59 UTC">November 27, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 11:16:06 UTC">November 27, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -365,17 +365,17 @@ uv<span class="w"> </span>run<span class="w"> </span>pytest
 <div class="language-text highlight"><pre><span></span><code>8 rule(s): 0 violated, 0 unverifiable, 0 waived
 </code></pre></div>
 <p><code>notes/rules.py</code> keeps two model rules commented out:
-<code>Models.require_explicit_table</code> and <code>Models.require_foreign_key_index</code>.
+<code>rules.Models.require_explicit_table</code> and <code>rules.Models.require_foreign_key_index</code>.
 <code>hinoki check</code> imports the models of every <code>[[apps]]</code> entry, so a project with
 no model at all would report them as <code>unverifiable</code>, which fails the check.
-Now that billing has <code>Invoice</code>, turn them on (and import <code>Models</code>):</p>
+Now that billing has <code>Invoice</code>, turn them on:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/rules.py (excerpt)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Models</span><span class="p">,</span> <span class="n">Schemas</span><span class="p">,</span> <span class="n">Transactions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">rules</span>
 
-<span class="n">project_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
+<span class="n">project_rules</span> <span class="o">=</span> <span class="n">rules</span><span class="o">.</span><span class="n">RuleSet</span><span class="p">(</span>
     <span class="c1"># …the rules the scaffold wrote…</span>
-    <span class="n">Models</span><span class="o">.</span><span class="n">require_explicit_table</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
-    <span class="n">Models</span><span class="o">.</span><span class="n">require_foreign_key_index</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Models</span><span class="o">.</span><span class="n">require_explicit_table</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Models</span><span class="o">.</span><span class="n">require_foreign_key_index</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
 <span class="p">)</span>
 </code></pre></div>
 <p>The check then reports the derived table name:</p>
@@ -443,7 +443,7 @@ set (<code>rules</code>), as the Tracker's <code>hinoki.toml</code> does.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 10:03:59 UTC">November 27, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 11:16:06 UTC">November 27, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

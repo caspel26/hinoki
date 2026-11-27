@@ -501,7 +501,7 @@
           <h1 id="check-architecture-with-rules">Check architecture with rules<a class="headerlink" href="#check-architecture-with-rules" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 11:16:06 UTC">November 27, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -514,26 +514,25 @@ They are optional, and a project created with <code>hinoki new</code> starts wit
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/rules.py</span>
 <span class="sd">"""The project's rules. Weaken them only with the owner's decision (see hinoki-rules.toml)."""</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Schemas</span><span class="p">,</span> <span class="n">Transactions</span>  <span class="c1"># add Models with your first model</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">rules</span>
 
-<span class="n">project_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
+<span class="n">project_rules</span> <span class="o">=</span> <span class="n">rules</span><span class="o">.</span><span class="n">RuleSet</span><span class="p">(</span>
     <span class="c1"># Anything not public on purpose names an access policy, and the policy names permissions.</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"notes.api.health"</span><span class="p">]),</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"notes.api.health"</span><span class="p">]),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"notes.api.health"</span><span class="p">]),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"notes.api.health"</span><span class="p">]),</span>
     <span class="c1"># Responses are concrete Schema types and lists are paginated.</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">forbid_model_responses</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_return_type</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_pagination</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Actions</span><span class="o">.</span><span class="n">forbid_model_responses</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_return_type</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_pagination</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
     <span class="c1"># Writes run in a transaction that rolls back before errors become HTTP.</span>
-    <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(),</span>
     <span class="c1"># Secrets never reach a client, and request text is bounded.</span>
-    <span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"password_hash"</span><span class="p">,</span> <span class="s2">"password"</span><span class="p">,</span> <span class="s2">"token"</span><span class="p">),</span>
-    <span class="n">Schemas</span><span class="o">.</span><span class="n">require_string_limits</span><span class="p">(),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"password_hash"</span><span class="p">,</span> <span class="s2">"password"</span><span class="p">,</span> <span class="s2">"token"</span><span class="p">),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Schemas</span><span class="o">.</span><span class="n">require_string_limits</span><span class="p">(),</span>
     <span class="c1"># Turn these on with your first model (a model rule that matches no model</span>
     <span class="c1"># fails the check): tables are pinned and foreign keys are indexed.</span>
-    <span class="c1"># Models.require_explicit_table(match="notes.*"),</span>
-    <span class="c1"># Models.require_foreign_key_index(match="notes.*"),</span>
+    <span class="c1"># rules.Models.require_explicit_table(match="notes.*"),</span>
+    <span class="c1"># rules.Models.require_foreign_key_index(match="notes.*"),</span>
 <span class="p">)</span>
 </code></pre></div>
 <p><code>hinoki.toml</code> lists the set under <code>[project]</code>, and <code>Hinoki()</code> loads it (see
@@ -558,61 +557,61 @@ They are optional, and a project created with <code>hinoki new</code> starts wit
 <tbody>
 <tr>
 <td><code>HNK-ACC-001</code></td>
-<td><code>Actions.require_access(match="*", except_=())</code></td>
+<td><code>rules.Actions.require_access(match="*", except_=())</code></td>
 <td>startup</td>
 <td>every matching action names an <code>Access</code> policy (public by default is the common hole)</td>
 </tr>
 <tr>
 <td><code>HNK-ACC-002</code></td>
-<td><code>Actions.require_permissions(match="*", except_=())</code></td>
+<td><code>rules.Actions.require_permissions(match="*", except_=())</code></td>
 <td>startup</td>
 <td>an action with an <code>Access</code> policy names at least one permission, so "any authenticated caller" is never implicit</td>
 </tr>
 <tr>
 <td><code>HNK-API-001</code></td>
-<td><code>Actions.forbid_model_responses(match="*", except_=())</code></td>
+<td><code>rules.Actions.forbid_model_responses(match="*", except_=())</code></td>
 <td>startup</td>
 <td>no action returns a <code>Model</code> (or a list or page of them): responses are <code>Schema</code> classes</td>
 </tr>
 <tr>
 <td><code>HNK-API-002</code></td>
-<td><code>Actions.require_return_type(match="*", except_=())</code></td>
+<td><code>rules.Actions.require_return_type(match="*", except_=())</code></td>
 <td>startup</td>
 <td>every action annotates a concrete return type (not missing, <code>Any</code> or <code>object</code>; <code>None</code> is fine for a <code>204</code>)</td>
 </tr>
 <tr>
 <td><code>HNK-API-003</code></td>
-<td><code>Actions.require_pagination(match="*", except_=())</code></td>
+<td><code>rules.Actions.require_pagination(match="*", except_=())</code></td>
 <td>startup</td>
 <td>a <code>GET</code> action never returns a plain <code>list[...]</code> (alone or in a union): it returns a <code>Page</code></td>
 </tr>
 <tr>
 <td><code>HNK-TXN-001</code></td>
-<td><code>Transactions.require_atomic(methods=("POST", "PUT", "PATCH", "DELETE"), match="*", except_=())</code></td>
+<td><code>rules.Transactions.require_atomic(methods=("POST", "PUT", "PATCH", "DELETE"), match="*", except_=())</code></td>
 <td>startup</td>
 <td>state-changing actions declare <code>atomic=True</code>, on the action or its <code>RouteGroup</code></td>
 </tr>
 <tr>
 <td><code>HNK-SCH-001</code></td>
-<td><code>Schemas.forbid_exposure(*fields)</code></td>
+<td><code>rules.Schemas.forbid_exposure(*fields)</code></td>
 <td>startup</td>
 <td>the named fields never appear in a response <code>Schema</code>: nested, in a subclass, in a union variant, as a field, an alias or a computed field; an action returning a <code>dict</code> is reported as unverifiable</td>
 </tr>
 <tr>
 <td><code>HNK-SCH-002</code></td>
-<td><code>Schemas.require_string_limits()</code></td>
+<td><code>rules.Schemas.require_string_limits()</code></td>
 <td>startup</td>
 <td>every text field a client sends (nested, in containers, <code>dict</code> values and union variants included) has <code>max_length</code> or <code>one_of</code>; <code>Enum</code> and <code>Literal</code> fields pass</td>
 </tr>
 <tr>
 <td><code>HNK-DB-001</code></td>
-<td><code>Models.require_explicit_table(match="*")</code></td>
+<td><code>rules.Models.require_explicit_table(match="*")</code></td>
 <td>startup</td>
 <td>matching models pin their table with <code>@db.table(...)</code> or <code>table=</code>, so renaming the class cannot rename the table</td>
 </tr>
 <tr>
 <td><code>HNK-DB-002</code></td>
-<td><code>Models.require_foreign_key_index(match="*")</code></td>
+<td><code>rules.Models.require_foreign_key_index(match="*")</code></td>
 <td>startup</td>
 <td>every foreign-key column leads an index, a primary key or a unique constraint</td>
 </tr>
@@ -624,7 +623,7 @@ They are optional, and a project created with <code>hinoki new</code> starts wit
 </tr>
 <tr>
 <td><code>HNK-IMP-001</code></td>
-<td><code>Imports.forbid(source, target)</code></td>
+<td><code>rules.Imports.forbid(source, target)</code></td>
 <td>static</td>
 <td>modules under <code>source</code> never import <code>target</code>, read from the source files; dynamic imports are reported, not ignored</td>
 </tr>
@@ -650,6 +649,8 @@ after the class it is mounted on), and <code>module.&lt;Model&gt;Crud.&lt;action
 <code>notes.api.health</code> or <code>*.health</code>. <code>except_</code> takes the same patterns and is how
 you say "public on purpose". The Blog example names its exceptions once:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># examples/blog/blog/rules.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">rules</span>
+
 <span class="n">PUBLIC</span> <span class="o">=</span> <span class="p">[</span>
     <span class="s2">"blog.apps.blog.api.health"</span><span class="p">,</span>
     <span class="s2">"blog.apps.blog.api.Posts.listing"</span><span class="p">,</span>
@@ -658,12 +659,12 @@ you say "public on purpose". The Blog example names its exceptions once:</p>
 <span class="p">]</span>
 <span class="n">SIGNED_IN</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"blog.apps.blog.accounts.*.me"</span><span class="p">]</span>  <span class="c1"># any signed-in user, no permission</span>
 
-<span class="n">blog_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="n">PUBLIC</span><span class="p">),</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="o">*</span><span class="n">PUBLIC</span><span class="p">,</span> <span class="o">*</span><span class="n">SIGNED_IN</span><span class="p">]),</span>
-    <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"hinoki.ai.mcpapp.*"</span><span class="p">]),</span>
-    <span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"token_hash"</span><span class="p">,</span> <span class="s2">"password_hash"</span><span class="p">),</span>
-    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"blog.apps.blog.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"blog.apps.blog.api"</span><span class="p">),</span>
+<span class="n">blog_rules</span> <span class="o">=</span> <span class="n">rules</span><span class="o">.</span><span class="n">RuleSet</span><span class="p">(</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="n">PUBLIC</span><span class="p">),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="o">*</span><span class="n">PUBLIC</span><span class="p">,</span> <span class="o">*</span><span class="n">SIGNED_IN</span><span class="p">]),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"hinoki.ai.mcpapp.*"</span><span class="p">]),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"token_hash"</span><span class="p">,</span> <span class="s2">"password_hash"</span><span class="p">),</span>
+    <span class="n">rules</span><span class="o">.</span><span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"blog.apps.blog.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"blog.apps.blog.api"</span><span class="p">),</span>
     <span class="c1"># ... and the other six rules, see the file</span>
 <span class="p">)</span>
 </code></pre></div>
@@ -691,7 +692,7 @@ passes silently.</p>
 merged in the order listed into one <code>RuleSet</code>, so the report keeps that order.
 The same rule (same id and summary) listed by two entries is a <code>ProjectError</code>
 naming both entries, never a silent override; rules that share an id but differ
-in their arguments, such as two <code>Imports.forbid(...)</code>, are different rules. An entry that does not import, is not a <code>RuleSet</code>, or
+in their arguments, such as two <code>rules.Imports.forbid(...)</code>, are different rules. An entry that does not import, is not a <code>RuleSet</code>, or
 a list of anything else is rejected the same way. You edit the list by hand;
 no command writes it. <code>manifest_rules()</code> (from <code>hinoki.project</code>) is the explicit
 form, for <code>Hinoki(rules=manifest_rules())</code> or a test.</p>
@@ -855,8 +856,7 @@ This app requires access on every
 action, yet it starts and serves <code>/health</code> because the owner waived it. It
 passes <code>rules=</code> by hand, the explicit form, to keep the example in one file:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># shop/main.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span><span class="p">,</span> <span class="n">rules</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Health</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -868,7 +868,7 @@ passes <code>rules=</code> by hand, the explicit form, to keep the example in on
     <span class="k">return</span> <span class="n">Health</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"ok"</span><span class="p">)</span>
 
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">rules</span><span class="o">=</span><span class="n">RuleSet</span><span class="p">(</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">()),</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">])</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">rules</span><span class="o">=</span><span class="n">rules</span><span class="o">.</span><span class="n">RuleSet</span><span class="p">(</span><span class="n">rules</span><span class="o">.</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">()),</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">])</span>
 </code></pre></div>
 <div class="language-toml highlight"><pre><span></span><code><span class="c1"># hinoki-rules.toml</span>
 <span class="k">[[waiver]]</span>
@@ -968,7 +968,7 @@ same ID twice.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 11:16:06 UTC">November 27, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
