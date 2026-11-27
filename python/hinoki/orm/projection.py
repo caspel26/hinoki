@@ -26,6 +26,7 @@ KEY_KINDS = frozenset({"int", "str", "uuid"})
 SEPARATOR = "__"
 
 type _PlanKey = tuple[tuple[str, ...], tuple[str, ...], str]
+type _PlanFastKey = tuple[int, int, tuple[str, ...], tuple[str, ...], str]
 type _PlanEntry = tuple[
     core._RowPlan | None,
     tuple[type[Schema], ...],
@@ -36,6 +37,42 @@ _PLAN_CACHE: weakref.WeakKeyDictionary[
     type[Schema],
     weakref.WeakKeyDictionary[type[Model], dict[_PlanKey, _PlanEntry]],
 ] = weakref.WeakKeyDictionary()
+_PLAN_FAST_CACHE: dict[_PlanFastKey, _PlanEntry] = {}
+_PLAN_CACHE_OWNERS: dict[int, list[_PlanFastKey]] = {}
+
+
+def _evict_plan_owner(owner_id: int) -> None:
+    keys = _PLAN_CACHE_OWNERS.pop(owner_id, None)
+    if keys is not None:
+        for key in keys:
+            _PLAN_FAST_CACHE.pop(key, None)
+
+
+def _plan_cache_put(
+    schema: type[Schema],
+    model: type[Model],
+    cache_key: _PlanKey,
+    fast_key: _PlanFastKey,
+    entry: _PlanEntry,
+) -> None:
+    per_schema = _PLAN_CACHE.get(schema)
+    if per_schema is None:
+        per_schema = weakref.WeakKeyDictionary()
+        _PLAN_CACHE[schema] = per_schema
+    per_model = per_schema.get(model)
+    if per_model is None:
+        per_model = {}
+        per_schema[model] = per_model
+    per_model[cache_key] = entry
+    _PLAN_FAST_CACHE[fast_key] = entry
+    for owner in (schema, model):
+        owner_id = id(owner)
+        keys = _PLAN_CACHE_OWNERS.get(owner_id)
+        if keys is None:
+            keys = []
+            _PLAN_CACHE_OWNERS[owner_id] = keys
+            weakref.finalize(owner, _evict_plan_owner, owner_id)
+        keys.append(fast_key)
 
 
 class _ProjectedList[S: Schema](list[S]):
@@ -795,12 +832,13 @@ def _all_hooks_stock(
     schemas: tuple[type[Schema], ...],
     models: tuple[type[Model], ...],
 ) -> bool:
-    return (
-        _schema_hooks_stock(schema)
-        and all(_schema_hooks_stock(s) for s in schemas)
-        and all(
-            getattr(m.from_row, "__func__", None) is _STOCK_FROM_ROW for m in models
-        )
+    if not _schema_hooks_stock(schema):
+        return False
+    for s in schemas:
+        if not _schema_hooks_stock(s):
+            return False
+    return not models or all(
+        getattr(m.from_row, "__func__", None) is _STOCK_FROM_ROW for m in models
     )
 
 
@@ -830,27 +868,31 @@ def compile_projection_plan(
         or getattr(query.model.from_row, "__func__", None) is not _STOCK_FROM_ROW
     ):
         return None
-    cache_key: _PlanKey = (
-        query.loading.selected,
-        query.loading.prefetched,
+    selected = query.loading.selected
+    prefetched = query.loading.prefetched
+    fast_key: _PlanFastKey = (
+        id(schema),
+        id(query.model),
+        selected,
+        prefetched,
         dialect,
     )
-    per_schema = _PLAN_CACHE.get(schema)
-    per_model = None if per_schema is None else per_schema.get(query.model)
-    if per_model is not None and cache_key in per_model:
-        plan, guard_schemas, guard_models, was_stock = per_model[cache_key]
+    entry = _PLAN_FAST_CACHE.get(fast_key)
+    if entry is not None:
+        plan, guard_schemas, guard_models, was_stock = entry
         if _all_hooks_stock(schema, guard_schemas, guard_models) == was_stock:
             return plan
     guard_schemas, guard_models = _plan_guards(query, schema)
     was_stock = _all_hooks_stock(schema, guard_schemas, guard_models)
     plan = _build_projection_plan(query, schema, dialect) if was_stock else None
-    if per_schema is None:
-        per_schema = weakref.WeakKeyDictionary()
-        _PLAN_CACHE[schema] = per_schema
-    if per_model is None:
-        per_model = {}
-        per_schema[query.model] = per_model
-    per_model[cache_key] = (plan, guard_schemas, guard_models, was_stock)
+    cache_key: _PlanKey = (selected, prefetched, dialect)
+    _plan_cache_put(
+        schema,
+        query.model,
+        cache_key,
+        fast_key,
+        (plan, guard_schemas, guard_models, was_stock),
+    )
     return plan
 
 
@@ -943,11 +985,10 @@ def compile_model_projection_plan(
     lookup without allocating an intermediate ``QuerySet`` on cache hits."""
     if getattr(model.from_row, "__func__", None) is not _STOCK_FROM_ROW:
         return None
-    cache_key: _PlanKey = ((), (), dialect)
-    per_schema = _PLAN_CACHE.get(schema)
-    per_model = None if per_schema is None else per_schema.get(model)
-    if per_model is not None and cache_key in per_model:
-        plan, guard_schemas, guard_models, was_stock = per_model[cache_key]
+    fast_key: _PlanFastKey = (id(schema), id(model), (), (), dialect)
+    entry = _PLAN_FAST_CACHE.get(fast_key)
+    if entry is not None:
+        plan, guard_schemas, guard_models, was_stock = entry
         if _all_hooks_stock(schema, guard_schemas, guard_models) == was_stock:
             return plan
     return compile_projection_plan(QuerySet(model), schema, dialect)
@@ -1067,6 +1108,40 @@ async def _project_one_fallback[S: Schema](
     return schema.from_model(await query.aget())
 
 
+def _stable_order(query: QuerySet[Any]) -> tuple[tuple[str, bool], ...]:
+    pk = query.model.__primary_key__
+    order = query.order
+    for col, _ in order:
+        if col == pk:
+            return order
+    return (*order, (pk, False))
+
+
+def _compile_page_queries(
+    query: QuerySet[Any], params: PageParams, dialect: str
+) -> tuple[str, list[Any], str, list[Any], QuerySet[Any] | None]:
+    if type(query) is QuerySet:
+        stable = _stable_order(query)
+        rows_compiled = query._compile_cached(
+            "select", dialect, params.page_size, params.offset, stable
+        )
+        count_compiled = query._compile_cached("count", dialect, None, None, ())
+        if rows_compiled is not None and count_compiled is not None:
+            return (
+                rows_compiled[0],
+                rows_compiled[1],
+                count_compiled[0],
+                count_compiled[1],
+                None,
+            )
+    window = query.stably_ordered().limit(params.page_size).offset(params.offset)
+    rows_sql, rows_params = window.compile(dialect=dialect)
+    count_sql, count_params = query.derive(
+        order=(), limit_to=None, offset_by=None
+    ).compile("count", dialect)
+    return rows_sql, rows_params, count_sql, count_params, window
+
+
 async def paginate_projected[S: Schema](
     query: QuerySet[Any],
     schema: type[S],
@@ -1077,20 +1152,17 @@ async def paginate_projected[S: Schema](
 ) -> Page[S]:
     """Execute one paginated ``query`` and project rows directly to ``schema``
     in Rust when eligible, falling back cleanly to normal pagination."""
-    ordered = query.stably_ordered()
-    window = ordered.limit(params.page_size).offset(params.offset)
-    plan = compile_projection_plan(window, schema, database.dialect)
+    plan = compile_projection_plan(query, schema, database.dialect)
     fetch_projected_page = getattr(database, "fetch_projected_page", None)
     if plan is not None and fetch_projected_page is not None:
-        rows_sql, rows_params = window.compile(dialect=database.dialect)
-        count_sql, count_params = query.derive(
-            order=(), limit_to=None, offset_by=None
-        ).compile("count", database.dialect)
+        rows_sql, rows_params, count_sql, count_params, window = _compile_page_queries(
+            query, params, database.dialect
+        )
         result = await fetch_projected_page(
             rows_sql,
-            list(rows_params),
+            rows_params,
             count_sql,
-            list(count_params),
+            count_params,
             plan,
             (params.page, params.page_size),
             concurrent=concurrent,
@@ -1101,13 +1173,26 @@ async def paginate_projected[S: Schema](
             return _ProjectedPage(
                 result,
                 schema,
-                lambda handle: _materialize_rows(window, schema, handle),
+                lambda handle: _materialize_rows(
+                    window
+                    if window is not None
+                    else query.stably_ordered()
+                    .limit(params.page_size)
+                    .offset(params.offset),
+                    schema,
+                    handle,
+                ),
                 params.page,
                 params.page_size,
                 total,
             )
         raw_rows, total = result
-        models = await window._hydrate(raw_rows)
+        target = (
+            window
+            if window is not None
+            else query.stably_ordered().limit(params.page_size).offset(params.offset)
+        )
+        models = await target._hydrate(raw_rows)
         return Page(
             [schema.from_model(item) for item in models],
             params.page,
