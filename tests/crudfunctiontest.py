@@ -11,7 +11,6 @@ from hinoki import (
     API,
     UNSET,
     Access,
-    Actions,
     BearerAuth,
     Caller,
     CrudAccess,
@@ -26,7 +25,7 @@ from hinoki.db import Database, DatabaseModule
 from hinoki.errors import RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, QuerySet, field
-from hinoki.rules import Project, RuleSet, qualified
+from hinoki.rules import Actions, Project, RuleSet, qualified
 from tests.harness import Pool
 
 # Fixtures declare owner= resources on purpose: the owner read-scope warning is

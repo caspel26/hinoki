@@ -34,8 +34,7 @@ class Stamp(Middleware): ...
 
 middleware = [Stamp()]
 """,
-    "rules.py": """from hinoki import Actions
-from hinoki.rules import RuleSet
+    "rules.py": """from hinoki.rules import Actions, RuleSet
 
 project_rules = RuleSet(Actions.require_access())
 """,

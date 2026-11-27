@@ -32,9 +32,8 @@ table off screen,
 because ``hinoki migrations`` prints the absolute path of the throw-away
 database.
 
-Frames are timed on a 1/60 s grid and written as an APNG, which keeps exact
-frame delays: a GIF's delays are whole hundredths of a second and browsers play
-those under two hundredths at a tenth of a second, so a GIF cannot reach 60 fps.
+Frames are timed on a 1/30 s grid and written as an APNG, which keeps exact
+frame delays that a GIF's hundredths-of-a-second timing cannot represent.
 The picture is 1992x1280 (the layout is drawn at twice its design size, ``S``).
 A frame that does not change the picture is merged into the
 previous one, so the file holds only distinct frames.
@@ -102,8 +101,8 @@ CARD_MS = 1600  # the title card before and after the session
 ENTER, DOWN = "\r", "\x1b[B"
 SGR_256 = 5  # 38;5;n selects an indexed colour, 38;2;r;g;b a true colour
 BRAILLE = range(0x2800, 0x2900)
-FPS = 60
-TICK = 1000 / FPS  # ms: one frame at 60 fps
+FPS = 30
+TICK = 1000 / FPS  # ms: one frame at 30 fps
 PACE = 1.3  # keystroke and pause scale: a little slower than the first recording
 INTRO_MS, OUTRO_MS = 1400, 700  # the title card that opens and closes the loop
 FADE_MS = 200  # cross-fade between the title card and the terminal
@@ -953,7 +952,7 @@ def quantise(frames: list[Frame]) -> list[Frame]:
 
 
 def timeline(frames: list[Frame]) -> list[Frame]:
-    """The recorded frames with their motion, on the 60 fps grid."""
+    """The recorded frames with their motion, on the 30 fps grid."""
     return quantise(fades(blink(animate(compress(frames)))))
 
 
@@ -1360,7 +1359,7 @@ def shape(draw: ImageDraw.ImageDraw, char: str, cx: int, cy: int, color: str) ->
 
 
 def encode(frames: list[Frame], painter: Painter, scratch: Path, colors: int) -> Path:
-    """Draw every frame and join them, at 60 fps, into an APNG with ffmpeg."""
+    """Draw every frame and join them, at 30 fps, into an APNG with ffmpeg."""
     listing = []
     for number, frame in enumerate(frames):
         path = scratch / f"f{number:04d}.png"
@@ -1426,7 +1425,7 @@ def apng_delays(movie: Path) -> list[float]:
 
 
 def report(movie: Path) -> None:
-    """Print the APNG's frame rate and size; fail when it is not 60 fps."""
+    """Print the APNG's frame rate and size; reject delays shorter than one frame."""
     delays = apng_delays(movie)
     off = sorted({delay for delay in delays if delay < TICK - 1})
     if off:
