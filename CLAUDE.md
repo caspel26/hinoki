@@ -55,7 +55,7 @@ uv run --locked --group docs mkdocs build --strict
 ## Commits and pull requests
 
 - One cohesive scope per commit and one matching conventional-commit type. Keep implementation, tests, documentation, dependencies/tooling and repository policy in separate commits.
-- Branches are `<type>/<short-kebab-case-topic>` with the same types (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). Delete a branch once its pull request is merged: the remote branch goes automatically (the repository deletes head branches on merge; with `gh pr merge` keep `--delete-branch`), and you delete the local branch and its worktree.
+- Branches are `<type>/<short-kebab-case-topic>` with the same types (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`). Delete a branch once its pull request is merged: the remote branch goes automatically (the repository deletes head branches on merge; with `gh pr merge` keep `--delete-branch`), and you delete the local branch.
 - Pull request descriptions follow [`.github/pull_request_template.md`](.github/pull_request_template.md) and explain the change; they carry no personal messages.
 - Every pull request carries one label for its type, set when it is opened (`gh pr create --label`): `feat` → `enhancement`, `fix` → `bug`, `docs` → `documentation`, `perf` → `performance`, `test` → `tests`, and `refactor`, `build`, `ci` and `chore` by their own names.
-- Do not use `git checkout`, `git stash` or `git reset` to rearrange a tree shared with other work; use a separate worktree.
+- Never create additional git worktrees on this machine (`git worktree add` is forbidden). Keep a single working tree and do all work on dedicated branches.
