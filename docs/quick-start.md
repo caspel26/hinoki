@@ -47,14 +47,20 @@ notes/
 │   ├── routes.py      routes = [health]
 │   ├── settings.py    typed settings, NOTES_* variables
 │   ├── rules.py       architecture rules
-│   └── apps/entries/  models, endpoints, routes and migrations of the app
+│   └── apps/
+│       └── entries/   starter app registered in hinoki.toml
+│           ├── api.py
+│           ├── routes.py
+│           ├── models.py
+│           └── migrations/
 ├── tests/             pytest suite
 └── AGENTS.md          agent instructions
 ```
 
-The project package holds no models. They live in apps; answering no to the
-last question leaves the project without one, and
-[Add another app](#add-another-app) shows how to add it later.
+The generated project serves `/health`. The `entries` app starts with an empty
+route list and space for its models and migrations. Choosing no at **Create an
+app now?** creates just the project. [Add another app](#add-another-app) shows
+how to add one later.
 
 !!! tip "Scripts and CI"
     `uv run hinoki new notes --dir .. --no-input --database sqlite --git --install --app entries`
@@ -106,8 +112,7 @@ uv run hinoki routes
 ```
 
 ```text
-METHOD  PATH     HANDLER           ACCESS  ATOMIC  ERRORS
-GET     /health  notes.api.health  public  -       -
+GET     /health  public                   notes.api.health
 ```
 
 ## What the manifest does
@@ -115,7 +120,7 @@ GET     /health  notes.api.health  public  -       -
 `hinoki.toml` registers the application, the project's route map (`[project] routes`),
 the rules it runs and each app's persistence and dependencies. `notes/main.py`
 loads `[project] routes` automatically, while `notes/routes.py` decides which
-apps are mounted over HTTP (`Mount("/entries", ...)`):
+apps are mounted over HTTP:
 
 ```toml
 [project]
@@ -181,10 +186,10 @@ when you answered the last question:
 
 ```text
 notes/apps/entries/
-├── api.py         endpoints of the app
-├── routes.py      reusable routes of the app
-├── models.py      tables of the app
-└── migrations/    migration history
+├── api.py         starter for the app’s endpoints
+├── routes.py      empty app route list
+├── models.py      starter for the app’s models
+└── migrations/    migration package
 ```
 
 It is registered in `hinoki.toml`:
@@ -197,13 +202,25 @@ migrations = "notes.apps.entries.migrations"
 requires = []
 ```
 
-To expose the app's endpoints over HTTP, mount them in `notes/routes.py` with
-`Mount("/entries", entries_routes)`.
+After adding an endpoint or a group to the app's own route list, mount that list
+in the project's route map:
+
+```python
+# notes/routes.py
+from hinoki import Includable, Mount
+
+from notes.api import health
+from notes.apps.entries.routes import routes as entries_routes
+
+routes: list[Includable] = [health, Mount("/entries", entries_routes)]
+```
+
+Endpoints inside the app declare paths relative to the `/entries` prefix.
 
 App names are lower-case letters and digits with single underscores between words
 (for example `api_v1`), starting with a letter. Define the
 app's models in `notes/apps/entries/models.py`, then
-`uv run hinoki migrations plan entries`; [8. Projects and apps](tutorial/8-projects.md)
+`uv run hinoki migrations plan entries`; [9. Projects and apps](tutorial/8-projects.md)
 walks through it.
 
 ### Add another app
@@ -217,7 +234,7 @@ uv run hinoki app create billing
 ## Next
 
 - [Tutorial](tutorial/index.md): build an API layer by layer.
-- [8. Projects and apps](tutorial/8-projects.md): add an app with its own
+- [9. Projects and apps](tutorial/8-projects.md): add an app with its own
   models and migrations to this project.
 - [Notes example](https://github.com/caspel26/hinoki/tree/main/examples/notes):
-  a small CRUD API whose model lives in `notes/apps/notes`.
+  a separate, complete project with a model, schemas and generated CRUD routes.
