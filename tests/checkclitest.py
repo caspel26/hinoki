@@ -318,8 +318,8 @@ def project_with_models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path
     )
     write(
         package / "main.py",
-        "from hinoki import Hinoki, Models\n"
-        "from hinoki.rules import RuleSet\n\n"
+        "from hinoki import Hinoki\n"
+        "from hinoki.rules import Models, RuleSet\n\n"
         "app = Hinoki(rules=RuleSet(Models.require_explicit_table("
         'match="checkmodelsproj.*")))\n',
     )

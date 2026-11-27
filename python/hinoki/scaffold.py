@@ -101,26 +101,25 @@ def health() -> Health:
 
 RULES = '''"""The project's rules. Weaken them only with the owner's decision (see hinoki-rules.toml)."""
 
-from hinoki import Actions, Schemas, Transactions  # add Models with your first model
-from hinoki.rules import RuleSet
+from hinoki import rules
 
-project_rules = RuleSet(
+project_rules = rules.RuleSet(
     # Anything not public on purpose names an access policy, and the policy names permissions.
-    Actions.require_access(match="{name}.*", except_=["{name}.api.health"]),
-    Actions.require_permissions(match="{name}.*", except_=["{name}.api.health"]),
+    rules.Actions.require_access(match="{name}.*", except_=["{name}.api.health"]),
+    rules.Actions.require_permissions(match="{name}.*", except_=["{name}.api.health"]),
     # Responses are concrete Schema types and lists are paginated.
-    Actions.forbid_model_responses(match="{name}.*"),
-    Actions.require_return_type(match="{name}.*"),
-    Actions.require_pagination(match="{name}.*"),
+    rules.Actions.forbid_model_responses(match="{name}.*"),
+    rules.Actions.require_return_type(match="{name}.*"),
+    rules.Actions.require_pagination(match="{name}.*"),
     # Writes run in a transaction that rolls back before errors become HTTP.
-    Transactions.require_atomic(),
+    rules.Transactions.require_atomic(),
     # Secrets never reach a client, and request text is bounded.
-    Schemas.forbid_exposure("password_hash", "password", "token"),
-    Schemas.require_string_limits(),
+    rules.Schemas.forbid_exposure("password_hash", "password", "token"),
+    rules.Schemas.require_string_limits(),
     # Turn these on with your first model (a model rule that matches no model
     # fails the check): tables are pinned and foreign keys are indexed.
-    # Models.require_explicit_table(match="{name}.*"),
-    # Models.require_foreign_key_index(match="{name}.*"),
+    # rules.Models.require_explicit_table(match="{name}.*"),
+    # rules.Models.require_foreign_key_index(match="{name}.*"),
 )
 '''
 
@@ -245,7 +244,7 @@ uv run hinoki dev                               # reload; `serve` runs it for pr
 
 The generated project has no database or protected resource, and has an app only if `hinoki new` created one. Models live in apps, never in the project package: if `hinoki.toml` registers no app, run `uv run hinoki app create <name>` first, then work inside `{name}/apps/<name>/`. The reference is `examples/tracker` in the framework repository; the shape is:
 
-1. `apps/<name>/models.py`: a `Member` (id, name, token) and your model with `owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="...")` (`OnDelete` comes from `hinoki.orm`). Then turn on the two model rules in `rules.py` (`Models.require_explicit_table`, `Models.require_foreign_key_index`): pin each table with `table=` or `@db.table(...)`, and index each foreign key with `@db.indexed("owner_id")`.
+1. `apps/<name>/models.py`: a `Member` (id, name, token) and your model with `owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="...")` (`OnDelete` comes from `hinoki.orm`). Then turn on the two model rules in `rules.py` (`rules.Models.require_explicit_table`, `rules.Models.require_foreign_key_index`): pin each table with `table=` or `@db.table(...)`, and index each foreign key with `@db.indexed("owner_id")`.
 2. `apps/<name>/schemas.py`: an `In` schema without the owner, an `Out` schema.
 3. `apps/<name>/operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
 4. `apps/<name>/security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.

@@ -51,18 +51,17 @@ Session persistence (`Session.commit()`) runs after the handler and its `atomic=
 `RouteGroup(..., atomic=True)` makes `POST`, `PUT`, `PATCH` and `DELETE` atomic
 by default; `GET` actions are not. An action opts out with `atomic=False`.
 
-A project created with `hinoki new` enforces `Transactions.require_atomic()`
+A project created with `hinoki new` enforces `rules.Transactions.require_atomic()`
 (`HNK-TXN-001`), so a write that opts out stops `hinoki check` and startup until
 you record the decision. List the action in `except_` in `notes/rules.py`:
 
 ```python
 # notes/rules.py, listed in `rules` of hinoki.toml
-from hinoki import Transactions
-from hinoki.rules import RuleSet
+from hinoki import rules
 
-project_rules = RuleSet(
+project_rules = rules.RuleSet(
     # ... the other rules
-    Transactions.require_atomic(except_=["notes.apps.billing.api.remind"]),
+    rules.Transactions.require_atomic(except_=["notes.apps.billing.api.remind"]),
 )
 ```
 
@@ -143,7 +142,7 @@ A child task cannot share its parent's active transaction: opening a nested scop
 
 ### Decorated functions and routes
 
-A function decorated with `@db.atomic` can also be a route handler (put the HTTP decorator outermost). Binding, OpenAPI and the native server see the original signature, and the handler runs inside its own atomic scope. That scope covers the handler call only: it commits when the handler returns, before the response is encoded. `atomic=True` on the action is the declaration that also covers response encoding, and it is what `HNK-TXN-001` (`Transactions.require_atomic`) reads: the rule does not inspect decorators, so an action that is only decorated with `@db.atomic` is still reported. Prefer `atomic=True` on actions and keep `db.atomic` for application code that the action calls.
+A function decorated with `@db.atomic` can also be a route handler (put the HTTP decorator outermost). Binding, OpenAPI and the native server see the original signature, and the handler runs inside its own atomic scope. That scope covers the handler call only: it commits when the handler returns, before the response is encoded. `atomic=True` on the action is the declaration that also covers response encoding, and it is what `HNK-TXN-001` (`rules.Transactions.require_atomic`) reads: the rule does not inspect decorators, so an action that is only decorated with `@db.atomic` is still reported. Prefer `atomic=True` on actions and keep `db.atomic` for application code that the action calls.
 
 On the native server lane, a handler is still Python code: Rust calls the Python function, so a `@db.atomic` function behaves exactly as on the Python pipeline, including the rollback when it raises.
 
@@ -173,6 +172,6 @@ A send that fails after the commit is logged and does not undo the commit; the c
 
 ## See also
 
-- [Rules](rules.md): `Transactions.require_atomic` makes atomic writes a checked promise.
+- [Rules](rules.md): `rules.Transactions.require_atomic` makes atomic writes a checked promise.
 - [Lifecycle hooks](model-hooks.md): `self.after_commit` in model hooks.
 - [Sync and async](sync-async.md)
