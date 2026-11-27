@@ -1,0 +1,182 @@
+name: Benchmark
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base git ref or SHA (defaults to HEAD~1)"
+        required: false
+        default: ""
+      cand_ref:
+        description: "Candidate git ref or SHA (defaults to github.sha)"
+        required: false
+        default: ""
+
+concurrency:
+  group: benchmark-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  benchmark:
+    name: Paired benchmark (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: true
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Resolve revisions and prepare worktrees
+        id: prep
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_SHA_VAL: ${{ github.sha }}
+          INPUT_BASE_REF: ${{ inputs.base_ref }}
+          INPUT_CAND_REF: ${{ inputs.cand_ref }}
+        run: |
+          set -euo pipefail
+          ART_DIR="$RUNNER_TEMP/bench-artifacts"
+          mkdir -p "$ART_DIR"
+          ZERO_SHA="0000000000000000000000000000000000000000"
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            BASE_SHA="$PR_BASE_SHA"
+            CAND_SHA="$GITHUB_SHA_VAL"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            BASE_SHA="$PUSH_BEFORE_SHA"
+            CAND_SHA="$GITHUB_SHA_VAL"
+          else
+            CAND_REF="$INPUT_CAND_REF"
+            CAND_SHA="$(git rev-parse "${CAND_REF:-$GITHUB_SHA_VAL}")"
+            BASE_REF="$INPUT_BASE_REF"
+            if [[ -n "$BASE_REF" ]]; then
+              BASE_SHA="$(git rev-parse "$BASE_REF")"
+            else
+              BASE_SHA="$(git rev-parse "${CAND_SHA}~1" 2>/dev/null || echo "$ZERO_SHA")"
+            fi
+          fi
+
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "cand_sha=$CAND_SHA" >> "$GITHUB_OUTPUT"
+
+          mark_invalid() {
+            local reason="$1"
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            printf '{"schema_version":1,"status":"invalid","error":"%s","base_sha":"%s","cand_sha":"%s"}\n' \
+              "$reason" "$BASE_SHA" "$CAND_SHA" > "$ART_DIR/benchmark-report.json"
+            printf '## Hinoki Benchmark Comparison: **INVALID** (informational)\n\n- **Base SHA:** `%s`\n- **Candidate SHA:** `%s`\n\n> **Reason:** %s\n' \
+              "$BASE_SHA" "$CAND_SHA" "$reason" > "$ART_DIR/benchmark-summary.md"
+            exit 0
+          }
+
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" == "$ZERO_SHA" ]]; then
+            mark_invalid "Base revision is unavailable (empty or all-zero SHA)."
+          fi
+
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$BASE_SHA" || mark_invalid "Could not fetch base revision $BASE_SHA."
+          fi
+          if ! git cat-file -e "${CAND_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$CAND_SHA" || mark_invalid "Could not fetch candidate revision $CAND_SHA."
+          fi
+
+          rm -rf "$RUNNER_TEMP/base" "$RUNNER_TEMP/cand"
+          git worktree add --detach "$RUNNER_TEMP/base" "$BASE_SHA" || mark_invalid "Failed to check out base worktree."
+          git worktree add --detach "$RUNNER_TEMP/cand" "$CAND_SHA" || mark_invalid "Failed to check out candidate worktree."
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build base and candidate release extensions
+        id: build
+        if: steps.prep.outputs.valid == 'true'
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.prep.outputs.base_sha }}
+          CAND_SHA: ${{ steps.prep.outputs.cand_sha }}
+        run: |
+          set -euo pipefail
+          ART_DIR="$RUNNER_TEMP/bench-artifacts"
+
+          build_rev() {
+            local dir="$1"
+            local label="$2"
+            (
+              cd "$dir"
+              uv sync --locked
+              uv run --locked --with maturin maturin develop --release --manifest-path crates/bindings/Cargo.toml
+            ) || {
+              printf '{"schema_version":1,"status":"invalid","error":"Build failed for %s","base_sha":"%s","cand_sha":"%s"}\n' \
+                "$label" "$BASE_SHA" "$CAND_SHA" > "$ART_DIR/benchmark-report.json"
+              printf '## Hinoki Benchmark Comparison: **INVALID** (informational)\n\n> **Reason:** Build failed for %s.\n' \
+                "$label" > "$ART_DIR/benchmark-summary.md"
+              echo "built=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            }
+          }
+
+          build_rev "$RUNNER_TEMP/base" "base"
+          build_rev "$RUNNER_TEMP/cand" "candidate"
+          echo "built=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run paired benchmark comparison
+        if: steps.prep.outputs.valid == 'true' && steps.build.outputs.built == 'true'
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.prep.outputs.base_sha }}
+          CAND_SHA: ${{ steps.prep.outputs.cand_sha }}
+        run: |
+          set -euo pipefail
+          ART_DIR="$RUNNER_TEMP/bench-artifacts"
+          "$RUNNER_TEMP/cand/.venv/bin/python" "$RUNNER_TEMP/cand/benchmarks/ci_compare.py" \
+            --base-python "$RUNNER_TEMP/base/.venv/bin/python" \
+            --cand-python "$RUNNER_TEMP/cand/.venv/bin/python" \
+            --bench-script "$RUNNER_TEMP/cand/benchmarks/ci_bench.py" \
+            --base-sha "$BASE_SHA" \
+            --cand-sha "$CAND_SHA" \
+            --rounds 5 \
+            --seconds 2.0 \
+            --warmup 0.5 \
+            --connections 16 \
+            --out-json "$ART_DIR/benchmark-report.json" \
+            --out-md "$ART_DIR/benchmark-summary.md" \
+            --informational
+
+      - name: Publish step summary
+        if: always()
+        shell: bash
+        run: |
+          SUMMARY="$RUNNER_TEMP/bench-artifacts/benchmark-summary.md"
+          if [[ -f "$SUMMARY" ]]; then
+            cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Hinoki Benchmark Comparison: **INVALID** (informational)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Benchmark setup did not produce a summary artifact." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: benchmark-report-${{ github.run_id }}
+          path: ${{ runner.temp }}/bench-artifacts/
+          if-no-files-found: ignore
