@@ -112,8 +112,7 @@ uv run hinoki routes
 ```
 
 ```text
-METHOD  PATH     HANDLER           ACCESS  ATOMIC  ERRORS
-GET     /health  notes.api.health  public  -       -
+GET     /health  public                   notes.api.health
 ```
 
 ## What the manifest does
