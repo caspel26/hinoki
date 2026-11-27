@@ -4,6 +4,11 @@ import re
 from pathlib import Path
 
 ARCHIVED_RESULTS = {
+    "2026-11-27": (
+        "[the archived raw results](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-27/bench-2026-11-27.tar.gz) "
+        "(SHA-256: `a70e7a9be78f32de2af74bc117928c184f70f5d55878a4d7bfc4296df618048d`; "
+        "[checksum file](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-27/bench-2026-11-27.tar.gz.sha256))"
+    ),
     "2026-11-25": (
         "[the archived raw results](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/bench-2026-11-25.tar.gz) "
         "(SHA-256: `0db26f6e288a42f9532f9aad3e927e28690386ce0f262ee3ed1b456a4f32d7d5`; "
