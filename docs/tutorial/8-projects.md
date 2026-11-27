@@ -30,7 +30,7 @@ The command writes the package and registers it:
 ```text
 notes/apps/billing/
 ├── api.py         endpoints of the app
-├── routes.py      the list of routes served, mounted at the prefix
+├── routes.py      the app’s route list, initially empty
 ├── models.py      tables of the app
 └── migrations/    migration history
 ```
@@ -40,8 +40,6 @@ notes/apps/billing/
 name = "billing"
 models = "notes.apps.billing.models"
 migrations = "notes.apps.billing.migrations"
-routes = "notes.apps.billing.routes:routes"
-prefix = "/billing"
 requires = []
 ```
 
@@ -171,7 +169,7 @@ project-wide `middleware`, an `events` module per app and more than one rule
 set (`rules`), as the Tracker's `hinoki.toml` does.
 
 The project's rules (listed in `hinoki.toml`) require every action to name an
-`Access` policy with permissions; build one as in [chapter 4](4-endpoints.md).
+`Access` policy with permissions; build one as in [chapter 3](4-endpoints.md).
 
 ## Recap
 
