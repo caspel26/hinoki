@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use hinoki_orm::Database;
@@ -314,6 +314,7 @@ pub struct Core {
     pub(super) in_flight: InFlight,
     pub(super) ready: AtomicBool,
     pub(super) policies: [Arc<[Header]>; 2],
+    pub(super) compiled_policies: [Option<Arc<[kiso::headers::CompiledHeader]>>; 2],
     pub(super) cors: Option<Cors>,
     /// Policies of routes that declare their own CORS, by action number; each
     /// replaces `cors` for that route.
@@ -321,6 +322,7 @@ pub struct Core {
     pub(super) hosts: Option<Hosts>,
     pub(super) redirect_https: bool,
     pub(super) id_name: Arc<[u8]>,
+    pub(super) compiled_id_name: Option<kiso::headers::HeaderName>,
     pub(super) prefix: String,
     pub(super) counter: AtomicU64,
     /// Invalid trusted request ids seen on natively answered requests; the
@@ -336,9 +338,25 @@ pub struct Core {
     pub(super) ws_plans: HashMap<u32, WsPlan>,
     /// Open WebSocket connections the worker allows; a session holds one permit.
     pub(super) ws_slots: Arc<Semaphore>,
+    /// NativeLane object + eligible direct action numbers for zero-wakeup inline
+    /// dispatch from the Tokio thread (eliminates socketpair ping-pong).
+    pub(super) inline_lane: RwLock<Option<(Py<PyAny>, HashSet<u32>)>>,
 }
 
 impl Core {
+    pub(crate) fn is_inline_action(&self, action: u32) -> bool {
+        self.inline_lane
+            .read()
+            .ok()
+            .is_some_and(|slot| slot.as_ref().is_some_and(|(_, set)| set.contains(&action)))
+    }
+
+    pub(crate) fn inline_lane(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.inline_lane
+            .read()
+            .ok()
+            .and_then(|slot| slot.as_ref().map(|(lane, _)| lane.clone_ref(py)))
+    }
     pub(crate) fn native_jobs(&self) -> Arc<NativeJobs> {
         Arc::clone(&self.native_jobs)
     }
@@ -527,6 +545,11 @@ impl ServerCore {
         let bodies = EarlyBodies::new(&rendered).map_err(|TemplateError::Sentinel(n)| {
             PyValueError::new_err(format!("early body has {n} sentinels, expected 1"))
         })?;
+        let compiled_policies = [
+            kiso::headers::compile_headers(&policies.0).map(Arc::from),
+            kiso::headers::compile_headers(&policies.1).map(Arc::from),
+        ];
+        let compiled_id_name = kiso::headers::HeaderName::from_bytes(&request_id_name).ok();
         let (max_query_bytes, max_header_bytes, max_body_bytes, max_in_flight) = limits;
         let (ws_router, ws_plans) = build_websockets(&websockets)?;
         Ok(Self {
@@ -549,6 +572,7 @@ impl ServerCore {
                 in_flight: InFlight::new(max_in_flight),
                 ready: AtomicBool::new(false),
                 policies: [policies.0.into(), policies.1.into()],
+                compiled_policies,
                 cors: cors.map(cors_from),
                 route_cors: route_cors
                     .into_iter()
@@ -557,6 +581,7 @@ impl ServerCore {
                 hosts: hosts.map(|(exact, suffixes)| Hosts { exact, suffixes }),
                 redirect_https,
                 id_name: request_id_name.into(),
+                compiled_id_name,
                 prefix: request_id_prefix,
                 counter: AtomicU64::new(0),
                 ignored_ids: AtomicU64::new(0),
@@ -589,6 +614,7 @@ impl ServerCore {
                 ws_router,
                 ws_plans,
                 ws_slots: Arc::new(Semaphore::new(ws_connections)),
+                inline_lane: RwLock::new(None),
             }),
         })
     }
@@ -603,6 +629,23 @@ impl ServerCore {
 
     fn set_ready(&self, ready: bool) {
         self.core.ready.store(ready, Ordering::Release);
+    }
+
+    fn _set_inline_lane(&self, lane: Py<PyAny>, actions: Vec<u32>) -> PyResult<()> {
+        let mut slot = self.core.inline_lane.write().map_err(|_| poisoned())?;
+        let set: HashSet<u32> = actions.into_iter().collect();
+        *slot = if set.is_empty() {
+            None
+        } else {
+            Some((lane, set))
+        };
+        Ok(())
+    }
+
+    fn _clear_inline_lane(&self) -> PyResult<()> {
+        let mut slot = self.core.inline_lane.write().map_err(|_| poisoned())?;
+        slot.take();
+        Ok(())
     }
 
     fn _attach_database(&self, database: PyRef<'_, PyDatabase>) -> PyResult<()> {
@@ -770,6 +813,11 @@ impl ServerCore {
                 receiver,
                 asked,
                 ..
+            }
+            | Outcome::Inline {
+                request,
+                receiver,
+                asked,
             } => {
                 let reply = self
                     .core

@@ -70,23 +70,85 @@ impl CoreBackend {
     /// The outcome as the delivery the connection sends: a queued request may
     /// answer with a stream or a file, every other outcome is whole.
     async fn delivery_of(&self, outcome: Outcome) -> Delivery {
-        let Outcome::Queued {
-            wake,
-            receiver,
-            asked,
-        } = outcome
-        else {
-            return Delivery::Whole(self.reply_of(outcome).await);
-        };
-        if wake {
-            self.ring();
+        match outcome {
+            Outcome::Queued {
+                wake,
+                receiver,
+                asked,
+            } => {
+                if wake {
+                    self.ring();
+                }
+                self.await_delivery(receiver, &asked).await
+            }
+            Outcome::Inline {
+                request,
+                receiver,
+                asked,
+            } => self.inline_delivery(*request, receiver, asked).await,
+            other => Delivery::Whole(self.reply_of(other).await),
         }
+    }
+
+    async fn await_delivery(
+        &self,
+        receiver: tokio::sync::oneshot::Receiver<Sent>,
+        asked: &Asked,
+    ) -> Delivery {
         match receiver.await {
             Ok(Sent::Whole(reply)) => Delivery::Whole(reply),
+            Ok(Sent::Fast(fast)) => Delivery::Fast(*fast),
+            Ok(Sent::Streamed(streamed)) => Delivery::Streamed(streamed),
+            Ok(Sent::File(file)) => self.file_delivery(asked, file).await,
+            Ok(Sent::Upgrade(accepted)) => Delivery::Upgrade(accepted),
+            Err(_) => Delivery::Whole(self.not_ready(asked)),
+        }
+    }
+
+    async fn inline_delivery(
+        &self,
+        request: PreparedRequest,
+        mut receiver: tokio::sync::oneshot::Receiver<Sent>,
+        asked: Asked,
+    ) -> Delivery {
+        enum Dispatched {
+            Started,
+            Failed,
+            NotReady,
+        }
+        let dispatched = Python::attach(|py| -> Dispatched {
+            let Some(lane) = self.core.inline_lane(py) else {
+                return Dispatched::NotReady;
+            };
+            let Ok(py_req) = Py::new(py, request) else {
+                return Dispatched::Failed;
+            };
+            match lane.call_method1(py, "start", (py_req,)) {
+                Ok(res) if res.is_truthy(py).unwrap_or(false) => Dispatched::Started,
+                Ok(_) => Dispatched::NotReady,
+                Err(err) => {
+                    err.print(py);
+                    Dispatched::Failed
+                }
+            }
+        });
+        match dispatched {
+            Dispatched::Started => {}
+            Dispatched::Failed => return Delivery::Whole(internal_error()),
+            Dispatched::NotReady => return Delivery::Whole(self.not_ready(&asked)),
+        }
+        match receiver.try_recv() {
+            Ok(Sent::Whole(reply)) => Delivery::Whole(reply),
+            Ok(Sent::Fast(fast)) => Delivery::Fast(*fast),
             Ok(Sent::Streamed(streamed)) => Delivery::Streamed(streamed),
             Ok(Sent::File(file)) => self.file_delivery(&asked, file).await,
             Ok(Sent::Upgrade(accepted)) => Delivery::Upgrade(accepted),
-            Err(_) => Delivery::Whole(self.not_ready(&asked)),
+            Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
+                Delivery::Whole(self.not_ready(&asked))
+            }
+            Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
+                self.await_delivery(receiver, &asked).await
+            }
         }
     }
 
@@ -154,7 +216,7 @@ impl CoreBackend {
         let outcome = self.core.classify(head, true, &trace).ok()?;
         trace.set(match outcome {
             Outcome::Early(_) => Lane::Early,
-            Outcome::Queued { .. } => Lane::Python,
+            Outcome::Queued { .. } | Outcome::Inline { .. } => Lane::Python,
             Outcome::NativeCrud { .. } => Lane::Native,
         });
         Some(outcome)
@@ -178,6 +240,14 @@ impl CoreBackend {
                     Err(_) => self.not_ready(&asked),
                 }
             }
+            Outcome::Inline {
+                request,
+                receiver,
+                asked,
+            } => match self.inline_delivery(*request, receiver, asked).await {
+                Delivery::Whole(reply) => reply,
+                _ => internal_error(),
+            },
             Outcome::NativeCrud {
                 request,
                 receiver,
@@ -320,8 +390,8 @@ fn admitted(plan: &CrudPlan, request: &PreparedRequest) -> Option<Option<Admitte
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(0));
     let (subject, claims) = request
-        .single_header(b"authorization")
-        .and_then(|value| auth.caller(value, now))?;
+        .single_header(auth.credential_header_name())
+        .and_then(|value| auth.caller_from_header(value, now))?;
     Some(Some(AdmittedCaller { subject, claims }))
 }
 
@@ -484,6 +554,15 @@ impl Backend for CoreBackend {
 fn whole(sent: Sent) -> Answer {
     match sent {
         Sent::Whole(reply) => reply,
+        Sent::Fast(fast) => Answer {
+            status: fast.status,
+            headers: fast
+                .headers
+                .iter()
+                .map(|(n, v)| (n.as_str().as_bytes().to_vec(), v.as_bytes().to_vec()))
+                .collect(),
+            body: fast.body,
+        },
         Sent::Streamed(_) | Sent::File(_) | Sent::Upgrade(_) => internal_error(),
     }
 }

@@ -402,6 +402,7 @@ pub fn decode(token: &str, keys: &[Key], rules: &Rules<'_>) -> Result<Vec<u8>, F
 
 /// Verify `token` against `keys` and `rules`; returns the parsed claims map on
 /// success without requiring a second JSON parse.
+#[cfg(test)]
 pub fn decode_claims(
     token: &str,
     keys: &[Key],
@@ -682,7 +683,7 @@ pub(crate) fn map_to_py_dict<'py>(
 /// not read exactly as Python does, a token or claims Python might refuse) is
 /// left to the Python pipeline, which authenticates and answers `401`/`403`.
 pub(crate) struct ClaimsAuth {
-    keys: Vec<Key>,
+    compiled_keys: Vec<CompiledKey>,
     issuer: Option<String>,
     audience: Option<String>,
     leeway: i64,
@@ -690,6 +691,7 @@ pub(crate) struct ClaimsAuth {
     scope_claim: String,
     required: Vec<String>,
     extra_claims: Vec<String>,
+    cookie: Option<String>,
 }
 
 fn is_token_byte(byte: u8) -> bool {
@@ -698,15 +700,154 @@ fn is_token_byte(byte: u8) -> bool {
 
 pub(crate) type ClaimList = Vec<(String, Option<String>)>;
 
+enum CookieExtract<'a> {
+    Missing,
+    Token(&'a str),
+    Defer,
+}
+
+fn trim_ascii(mut bytes: &[u8]) -> &[u8] {
+    while let Some((&b, rest)) = bytes.split_first() {
+        if !b.is_ascii_whitespace() {
+            break;
+        }
+        bytes = rest;
+    }
+    while let Some((&b, rest)) = bytes.split_last() {
+        if !b.is_ascii_whitespace() {
+            break;
+        }
+        bytes = rest;
+    }
+    bytes
+}
+
+/// Extract a single plain-token cookie value matching `name`. Duplicate
+/// matching cookies, empty values, or non-token bytes `Defer` to Python so both
+/// sides never disagree on cookie parsing edge cases.
+fn plain_cookie<'a>(header: &'a [u8], name: &[u8]) -> CookieExtract<'a> {
+    let mut found: Option<&'a str> = None;
+    for part in header.split(|&b| b == b';') {
+        let Some(eq) = part.iter().position(|&b| b == b'=') else {
+            continue;
+        };
+        if trim_ascii(&part[..eq]) != name {
+            continue;
+        }
+        if found.is_some() {
+            return CookieExtract::Defer;
+        }
+        let val = trim_ascii(&part[eq + 1..]);
+        if val.is_empty() || !val.iter().copied().all(is_token_byte) {
+            return CookieExtract::Defer;
+        }
+        let Ok(text) = std::str::from_utf8(val) else {
+            return CookieExtract::Defer;
+        };
+        found = Some(text);
+    }
+    found.map_or(CookieExtract::Missing, CookieExtract::Token)
+}
+
+fn single_header<'a>(
+    headers: &'a [(Vec<u8>, Vec<u8>)],
+    wanted: &[u8],
+) -> Result<Option<&'a [u8]>, ()> {
+    let mut iter = headers
+        .iter()
+        .filter(|(name, _)| name.eq_ignore_ascii_case(wanted));
+    let first = iter.next().map(|(_, value)| value.as_slice());
+    if iter.next().is_some() {
+        return Err(());
+    }
+    Ok(first)
+}
+
 impl ClaimsAuth {
     /// The `sub` and any requested non-empty string claims of a valid
     /// `Authorization: Bearer <token>` with every required permission.
+    #[cfg(test)]
     pub(crate) fn caller(&self, authorization: &[u8], now: i64) -> Option<(String, ClaimList)> {
         match self.admit(Some(authorization), now) {
             Admission::Admit {
                 subject, claims, ..
             } => Some((subject, claims)),
             _ => None,
+        }
+    }
+
+    /// The `sub` and requested claims from either the configured cookie or
+    /// `Authorization: Bearer <token>`.
+    pub(crate) fn caller_from_header(
+        &self,
+        header_value: &[u8],
+        now: i64,
+    ) -> Option<(String, ClaimList)> {
+        let admission = if let Some(cookie_name) = self.cookie.as_deref() {
+            self.admit_cookie(Some(header_value), cookie_name.as_bytes(), now)
+        } else {
+            self.admit(Some(header_value), now)
+        };
+        match admission {
+            Admission::Admit {
+                subject, claims, ..
+            } => Some((subject, claims)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn credential_header_name(&self) -> &'static [u8] {
+        if self.cookie.is_some() {
+            b"cookie"
+        } else {
+            b"authorization"
+        }
+    }
+
+    /// Admit from raw request headers using either the configured cookie name
+    /// or `Authorization: Bearer <token>`.
+    pub(crate) fn admit_headers(&self, headers: &[(Vec<u8>, Vec<u8>)], now: i64) -> Admission {
+        if let Some(cookie_name) = self.cookie.as_deref() {
+            let Ok(raw) = single_header(headers, b"cookie") else {
+                return Admission::Defer;
+            };
+            return self.admit_cookie(raw, cookie_name.as_bytes(), now);
+        }
+        let Ok(raw) = single_header(headers, b"authorization") else {
+            return Admission::Defer;
+        };
+        self.admit(raw, now)
+    }
+
+    fn verify_token(&self, token: &str, now: i64) -> Admission {
+        let rules = Rules {
+            now,
+            leeway: self.leeway,
+            issuer: self.issuer.as_deref(),
+            audience: self.audience.as_deref(),
+            require_exp: self.require_exp,
+        };
+        match decode_claims_compiled(token, &self.compiled_keys, &rules) {
+            Ok(claims) => self.grants(claims),
+            Err(_) => Admission::Invalid,
+        }
+    }
+
+    /// What Python's `authorize` decides for one `Cookie` header when `cookie`
+    /// is configured.
+    pub(crate) fn admit_cookie(
+        &self,
+        cookie_header: Option<&[u8]>,
+        cookie_name: &[u8],
+        now: i64,
+    ) -> Admission {
+        let Some(header) = cookie_header else {
+            return Admission::Missing;
+        };
+        match plain_cookie(header, cookie_name) {
+            CookieExtract::Missing => Admission::Missing,
+            CookieExtract::Defer => Admission::Defer,
+            CookieExtract::Token(token) => self.verify_token(token, now),
         }
     }
 
@@ -720,17 +861,7 @@ impl ClaimsAuth {
         let Some(token) = plain_bearer(authorization) else {
             return Admission::Defer;
         };
-        let rules = Rules {
-            now,
-            leeway: self.leeway,
-            issuer: self.issuer.as_deref(),
-            audience: self.audience.as_deref(),
-            require_exp: self.require_exp,
-        };
-        match decode_claims(token, &self.keys, &rules) {
-            Ok(claims) => self.grants(claims),
-            Err(_) => Admission::Invalid,
-        }
+        self.verify_token(token, now)
     }
 
     fn grants(&self, claims: Map<String, Value>) -> Admission {
@@ -818,7 +949,8 @@ impl PyClaimsAuth {
     #[new]
     #[pyo3(signature = (
         keys, issuer, audience, leeway, require_exp, scope_claim, required,
-        extra_claims=Vec::new()
+        extra_claims=Vec::new(),
+        cookie=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -830,17 +962,22 @@ impl PyClaimsAuth {
         scope_claim: String,
         required: Vec<String>,
         extra_claims: Vec<String>,
+        cookie: Option<String>,
     ) -> PyResult<Self> {
         if keys.is_empty() || !(0..=MAX_LEEWAY).contains(&leeway) {
             return Err(PyValueError::new_err("invalid claims authentication"));
         }
-        let keys = keys
+        let compiled_keys = keys
             .into_iter()
-            .map(|(kid, algorithm, bytes, public)| key_from(kid, &algorithm, bytes, public))
+            .map(|(kid, algorithm, bytes, public)| {
+                let key = key_from(kid, &algorithm, bytes, public)?;
+                CompiledKey::from_key(&key)
+                    .map_err(|_| PyValueError::new_err("invalid claims authentication"))
+            })
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: std::sync::Arc::new(ClaimsAuth {
-                keys,
+                compiled_keys,
                 issuer,
                 audience,
                 leeway,
@@ -848,6 +985,7 @@ impl PyClaimsAuth {
                 scope_claim,
                 required,
                 extra_claims,
+                cookie,
             }),
         })
     }
@@ -1182,7 +1320,7 @@ mod tests {
 
     fn claims_auth(required: &[&str]) -> ClaimsAuth {
         ClaimsAuth {
-            keys: vec![hs(None)],
+            compiled_keys: vec![CompiledKey::from_key(&hs(None)).unwrap()],
             issuer: None,
             audience: None,
             leeway: 0,
@@ -1190,6 +1328,7 @@ mod tests {
             scope_claim: "scopes".to_owned(),
             required: required.iter().map(|name| (*name).to_owned()).collect(),
             extra_claims: Vec::new(),
+            cookie: None,
         }
     }
 
@@ -1319,5 +1458,50 @@ mod tests {
             decode_claims(&token, &[wrong_key], &rules(1000)),
             Err(Fail::Signature)
         );
+    }
+
+    #[test]
+    fn claims_auth_cookie_admits_valid_and_defers_ambiguous_headers() {
+        let mut auth = claims_auth(&["posts:write"]);
+        auth.cookie = Some("access_token".to_owned());
+        let good = r#"{"sub":"u1","exp":2000,"scopes":["posts:write"]}"#;
+        let token = encode(good.as_bytes(), &hs(None)).unwrap();
+
+        let valid_headers = vec![(
+            b"cookie".to_vec(),
+            format!("theme=dark; access_token={token}; lang=en").into_bytes(),
+        )];
+        assert!(matches!(
+            auth.admit_headers(&valid_headers, 1000),
+            Admission::Admit { ref subject, .. } if subject == "u1"
+        ));
+        assert_eq!(
+            auth.caller_from_header(&valid_headers[0].1, 1000),
+            Some(("u1".to_owned(), Vec::new()))
+        );
+        assert_eq!(auth.admit_headers(&[], 1000), Admission::Missing);
+        assert_eq!(
+            auth.admit_headers(&[(b"cookie".to_vec(), b"other=1".to_vec())], 1000),
+            Admission::Missing
+        );
+        assert_eq!(auth.admit_headers(&valid_headers, 2000), Admission::Invalid);
+        let dup_cookie = vec![(
+            b"cookie".to_vec(),
+            format!("access_token={token}; access_token={token}").into_bytes(),
+        )];
+        assert_eq!(auth.admit_headers(&dup_cookie, 1000), Admission::Defer);
+        let quoted_cookie = vec![(
+            b"cookie".to_vec(),
+            format!("access_token=\"{token}\"").into_bytes(),
+        )];
+        assert_eq!(auth.admit_headers(&quoted_cookie, 1000), Admission::Defer);
+        let two_headers = vec![
+            (b"cookie".to_vec(), b"a=1".to_vec()),
+            (
+                b"cookie".to_vec(),
+                format!("access_token={token}").into_bytes(),
+            ),
+        ];
+        assert_eq!(auth.admit_headers(&two_headers, 1000), Admission::Defer);
     }
 }
