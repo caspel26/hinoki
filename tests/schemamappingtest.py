@@ -14,7 +14,6 @@ from hinoki import (
     Hinoki,
     Invalid,
     Schema,
-    Schemas,
     derive,
     field_check,
     field_normalize,
@@ -24,7 +23,7 @@ from hinoki import schema as schema_module
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.fieldtypes import MAX_MAPPING_ITEMS, MAX_MAPPING_KEY_LENGTH
 from hinoki.orm import Model, field
-from hinoki.rules import Project, RuleSet
+from hinoki.rules import Project, RuleSet, Schemas
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.testing import ASGIClient
 from tests.kisoservertest import JSON, fetch

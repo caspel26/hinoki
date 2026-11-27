@@ -4,11 +4,10 @@ Mail is sent on a caller's request, so every route names an access policy, reque
 strings are bounded, and every template matches its context.
 """
 
-from hinoki import Actions, Schemas
-from hinoki.rules import EmailTemplatesMatch, RuleSet
+from hinoki import rules
 
-policy = RuleSet(
-    Actions.require_access(match="mailroom.*"),
-    Schemas.require_string_limits(),
-    EmailTemplatesMatch(),
+policy = rules.RuleSet(
+    rules.Actions.require_access(match="mailroom.*"),
+    rules.Schemas.require_string_limits(),
+    rules.EmailTemplatesMatch(),
 )

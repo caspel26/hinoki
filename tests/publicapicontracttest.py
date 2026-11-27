@@ -6,6 +6,9 @@ import ast
 import importlib
 from pathlib import Path
 
+import hinoki
+from hinoki import rules
+
 PACKAGES = (
     "hinoki",
     "hinoki.http",
@@ -49,6 +52,14 @@ def test_core_packages_export_all_declared_symbols_without_legacy_leaks() -> Non
         assert not hasattr(module, "Reply")
         for symbol in exports:
             assert hasattr(module, symbol), f"{package_name}.{symbol} is missing"
+
+
+def test_rule_families_are_available_only_from_the_rules_namespace() -> None:
+    families = {"Actions", "Imports", "Models", "Schemas", "Transactions"}
+    assert "rules" in hinoki.__all__
+    assert not families.intersection(hinoki.__all__)
+    assert all(hasattr(rules, name) for name in families)
+    assert all(not hasattr(hinoki, name) for name in families)
 
 
 def test_every_reference_directive_resolves_to_a_real_object() -> None:
