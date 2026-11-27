@@ -93,4 +93,4 @@
     uv run --locked python report.py results/YYYY-MM-DD/documented results/YYYY-MM-DD/same-granian results/YYYY-MM-DD/kiso results/YYYY-MM-DD/javascript results/YYYY-MM-DD/w8/documented results/YYYY-MM-DD/w8/same-granian results/YYYY-MM-DD/w8/kiso results/YYYY-MM-DD/w8/javascript > ../../docs/benchmarks.md
     ```
 
-    Raw `bombardier` JSON, environment records, server logs, per-worker CPU time and verification output are kept in `benchmarks/comparative/results/2026-11-25/`, `benchmarks/comparative/results/w8/`. Setup details, the database container and the rules for repeating an unstable scenario are in `benchmarks/comparative/README.md`.
+    Raw `bombardier` JSON, environment records, server logs, per-worker CPU time and verification output are kept in `benchmarks/comparative/results/2026-11-25/`, including its `w8/` subdirectory. Setup details, the database container and the rules for repeating an unstable scenario are in `benchmarks/comparative/README.md`.
