@@ -11,8 +11,8 @@ from blog.rules import blog_rules
 from blog.settings import BlogSettings
 from blogworld import ADMIN_SECRET, JWT_SECRET
 
-from hinoki import Actions, Hinoki, Request, http
-from hinoki.rules import Project, RuleSet, failing
+from hinoki import Hinoki, Request, http
+from hinoki.rules import Actions, Project, RuleSet, failing
 
 ROOT = Path(__file__).parents[1]
 

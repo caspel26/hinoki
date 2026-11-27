@@ -1,7 +1,7 @@
 """An application that deliberately breaks two rules, for the check CLI tests."""
 
-from hinoki import Actions, Hinoki, Request, Transactions, http
-from hinoki.rules import Diagnostic, Project, Rule, RuleSet
+from hinoki import Hinoki, Request, http
+from hinoki.rules import Actions, Diagnostic, Project, Rule, RuleSet, Transactions
 
 
 @http.get("/health")

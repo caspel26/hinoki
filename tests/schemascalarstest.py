@@ -20,7 +20,6 @@ from hinoki import (
     Hinoki,
     Invalid,
     Schema,
-    Schemas,
     Unset,
     core,
     derive,
@@ -35,7 +34,7 @@ from hinoki.fieldtypes import (
     MAX_DECIMAL_DIGITS,
 )
 from hinoki.orm import Model, field
-from hinoki.rules import Project, RuleSet
+from hinoki.rules import Project, RuleSet, Schemas
 from hinoki.schema import encode
 from hinoki.testing import ASGIClient
 
