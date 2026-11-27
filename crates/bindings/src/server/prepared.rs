@@ -123,7 +123,7 @@ pub struct PreparedRequest {
     pub(super) needs_headers: bool,
     pub(super) params: Vec<(String, String)>,
     pub(super) prepared_path_params: Option<PreparedPathParams>,
-    pub(super) client: Option<(String, u16)>,
+    pub(super) client: Option<std::net::SocketAddr>,
     pub(super) http_version: &'static str,
     pub(super) reply: Mutex<Option<oneshot::Sender<Sent>>>,
     pub(super) permit: Mutex<Option<Permit>>,
@@ -294,6 +294,11 @@ impl PreparedRequest {
     }
 
     #[getter]
+    fn has_native_args(&self) -> bool {
+        !self.native_args.is_empty()
+    }
+
+    #[getter]
     fn native_args<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let args = PyDict::new(py);
         for (name, value) in &self.native_args {
@@ -359,7 +364,7 @@ impl PreparedRequest {
     /// The socket peer as `(ip, port)`, when the request came over a socket.
     #[getter]
     fn client(&self) -> Option<(String, u16)> {
-        self.client.clone()
+        self.client.map(|peer| (peer.ip().to_string(), peer.port()))
     }
 
     /// Path parameters as matched, still percent-encoded.
@@ -674,7 +679,7 @@ impl PreparedRequest {
     pub(crate) fn respond_final_json(
         &self,
         status: u16,
-        headers: Vec<(Vec<u8>, Vec<u8>)>,
+        headers: Option<Vec<(Vec<u8>, Vec<u8>)>>,
         value: &Bound<'_, PyAny>,
         strict: bool,
     ) -> PyResult<bool> {
@@ -683,7 +688,9 @@ impl PreparedRequest {
         } else {
             crate::request::encode_json_bytes(value)?
         };
-        Ok(self.respond_final_owned(status, headers, body))
+        let own = headers
+            .unwrap_or_else(|| vec![(b"content-type".to_vec(), b"application/json".to_vec())]);
+        Ok(self.respond_final_owned(status, own, body))
     }
 
     /// The same finalization for an answer the Python pipeline built: the

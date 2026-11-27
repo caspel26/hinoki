@@ -1505,8 +1505,12 @@ fn encode_into<'py>(
     default: Option<Bound<'py, PyAny>>,
     strict: bool,
 ) -> PyResult<Bytes> {
-    if indent.is_none() && !sort_keys && default.is_none() && !is_plain_builtin(value) {
-        if let Some(handle) = preencoded_handle(value)? {
+    if indent.is_none() && !sort_keys && default.is_none() {
+        if is_plain_builtin(value) {
+            if let Ok(bytes) = StrictEncoder::encode_any(value.py(), value) {
+                return Ok(bytes);
+            }
+        } else if let Some(handle) = preencoded_handle(value)? {
             return Ok(handle.json.clone());
         }
     }
@@ -1532,6 +1536,231 @@ pub(crate) fn encode_json_bytes(value: &Bound<'_, PyAny>) -> PyResult<Bytes> {
     encode_into(value, None, false, None, false)
 }
 
+/// Fast single-pass strict encoder for `list[dict[str, object]]` responses.
+///
+/// # Safety invariants
+/// - Only called with the GIL held (`py: Python<'_>`).
+/// - Uses borrowed CPython pointers (`PyList_GetItem`, `PyTuple_GetItem`,
+///   `PyDict_Next`) ONLY on exact built-in `list`, `tuple`, `dict`, `str`,
+///   `int`, `float`, `bool`, and `None` objects.
+/// - Never invokes any Python callback (`default`, `dump()`, `__str__`,
+///   `__repr__`) while iterating a container, so no Python code can mutate or
+///   reallocate any container during traversal.
+/// - Exact `int` values overflowing `i64` are formatted via CPython's C
+///   `PyObject_Str` (`long_to_decimal_string`, no Python callbacks). Any
+///   non-exact type, lone surrogate, or formatting error returns `strict_miss()`
+///   immediately so the caller runs the full checked encoder.
+struct StrictEncoder {
+    out: Vec<u8>,
+}
+
+#[allow(unsafe_code)]
+impl StrictEncoder {
+    fn encode_any(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Bytes> {
+        static LAST_ANY_LEN: AtomicUsize = AtomicUsize::new(512);
+        let capacity = LAST_ANY_LEN.load(Ordering::Relaxed).clamp(512, 64 * 1024);
+        let mut enc = Self {
+            out: Vec::with_capacity(capacity),
+        };
+        enc.write_value(py, value.as_ptr(), 0)?;
+        LAST_ANY_LEN.store(enc.out.len(), Ordering::Relaxed);
+        Ok(Bytes::from(enc.out))
+    }
+
+    fn encode_top_list(py: Python<'_>, list: &Bound<'_, PyAny>) -> PyResult<Bytes> {
+        static LAST_STRICT_LEN: AtomicUsize = AtomicUsize::new(512);
+        let ptr = list.as_ptr();
+        // SAFETY: GIL is held; caller verified `list` is an exact `PyList`.
+        let len = unsafe { pyo3::ffi::PyList_Size(ptr) };
+        let estimated = (len.max(0) as usize).saturating_mul(128);
+        let last = LAST_STRICT_LEN.load(Ordering::Relaxed);
+        let capacity = last.max(estimated).clamp(512, 64 * 1024);
+        let mut enc = Self {
+            out: Vec::with_capacity(capacity),
+        };
+        enc.out.push(b'[');
+        for idx in 0..len {
+            if idx > 0 {
+                enc.out.push(b',');
+            }
+            // SAFETY: `ptr` is an exact `PyList`, `0 <= idx < len`, no Python
+            // code runs during the loop, so the borrowed pointer stays valid.
+            let item = unsafe { pyo3::ffi::PyList_GetItem(ptr, idx) };
+            // SAFETY: GIL held, `item` is non-null for in-bounds index.
+            if unsafe { pyo3::ffi::Py_TYPE(item) } != &raw mut pyo3::ffi::PyDict_Type {
+                return Err(strict_miss());
+            }
+            enc.write_dict(py, item, 1)?;
+        }
+        enc.out.push(b']');
+        LAST_STRICT_LEN.store(enc.out.len(), Ordering::Relaxed);
+        Ok(Bytes::from(enc.out))
+    }
+
+    fn write_str(&mut self, py: Python<'_>, ptr: *mut pyo3::ffi::PyObject) -> PyResult<()> {
+        let mut size: pyo3::ffi::Py_ssize_t = 0;
+        // SAFETY: GIL is held and caller verified `Py_TYPE(ptr) == &PyUnicode_Type`.
+        let raw = unsafe { pyo3::ffi::PyUnicode_AsUTF8AndSize(ptr, &mut size) };
+        if raw.is_null() {
+            // Clear UnicodeEncodeError (lone surrogate) so the non-strict path handles it.
+            // SAFETY: GIL is held.
+            unsafe { pyo3::ffi::PyErr_Clear() };
+            let _ = py;
+            return Err(strict_miss());
+        }
+        // SAFETY: `PyUnicode_AsUTF8AndSize` guarantees valid UTF-8 of `size` bytes
+        // borrowed for the lifetime of the string while the GIL is held.
+        let text = unsafe {
+            let bytes = std::slice::from_raw_parts(raw.cast::<u8>(), size as usize);
+            std::str::from_utf8_unchecked(bytes)
+        };
+        write_string(&mut self.out, text)
+    }
+
+    fn write_dict(
+        &mut self,
+        py: Python<'_>,
+        ptr: *mut pyo3::ffi::PyObject,
+        depth: usize,
+    ) -> PyResult<()> {
+        Encoder::enter(depth)?;
+        self.out.push(b'{');
+        let mut pos: pyo3::ffi::Py_ssize_t = 0;
+        let mut key: *mut pyo3::ffi::PyObject = std::ptr::null_mut();
+        let mut val: *mut pyo3::ffi::PyObject = std::ptr::null_mut();
+        let mut first = true;
+        // SAFETY: `ptr` is an exact `PyDict`, GIL is held, and no Python code
+        // runs inside the loop so the dict cannot be mutated during `PyDict_Next`.
+        while unsafe { pyo3::ffi::PyDict_Next(ptr, &mut pos, &mut key, &mut val) } != 0 {
+            if !first {
+                self.out.push(b',');
+            }
+            first = false;
+            // SAFETY: `key` is a valid borrowed pointer from `PyDict_Next`.
+            if unsafe { pyo3::ffi::Py_TYPE(key) } != &raw mut pyo3::ffi::PyUnicode_Type {
+                return Err(strict_miss());
+            }
+            self.write_str(py, key)?;
+            self.out.push(b':');
+            self.write_value(py, val, depth + 1)?;
+        }
+        self.out.push(b'}');
+        Ok(())
+    }
+
+    fn write_list(
+        &mut self,
+        py: Python<'_>,
+        ptr: *mut pyo3::ffi::PyObject,
+        depth: usize,
+    ) -> PyResult<()> {
+        Encoder::enter(depth)?;
+        // SAFETY: `ptr` is an exact `PyList`, GIL is held.
+        let len = unsafe { pyo3::ffi::PyList_Size(ptr) };
+        self.out.push(b'[');
+        for idx in 0..len {
+            if idx > 0 {
+                self.out.push(b',');
+            }
+            // SAFETY: in-bounds index, no Python code mutates the list.
+            let item = unsafe { pyo3::ffi::PyList_GetItem(ptr, idx) };
+            self.write_value(py, item, depth + 1)?;
+        }
+        self.out.push(b']');
+        Ok(())
+    }
+
+    fn write_tuple(
+        &mut self,
+        py: Python<'_>,
+        ptr: *mut pyo3::ffi::PyObject,
+        depth: usize,
+    ) -> PyResult<()> {
+        Encoder::enter(depth)?;
+        // SAFETY: `ptr` is an exact `PyTuple`, GIL is held.
+        let len = unsafe { pyo3::ffi::PyTuple_Size(ptr) };
+        self.out.push(b'[');
+        for idx in 0..len {
+            if idx > 0 {
+                self.out.push(b',');
+            }
+            // SAFETY: in-bounds index on immutable `PyTuple`.
+            let item = unsafe { pyo3::ffi::PyTuple_GetItem(ptr, idx) };
+            self.write_value(py, item, depth + 1)?;
+        }
+        self.out.push(b']');
+        Ok(())
+    }
+
+    fn write_big_int(&mut self, py: Python<'_>, ptr: *mut pyo3::ffi::PyObject) -> PyResult<()> {
+        // SAFETY: `ptr` is an exact `PyLong`, so `PyObject_Str` invokes
+        // CPython's C decimal formatter with no Python callbacks.
+        let text_obj = unsafe { Bound::from_owned_ptr_or_err(py, pyo3::ffi::PyObject_Str(ptr)) }?;
+        let mut size: pyo3::ffi::Py_ssize_t = 0;
+        // SAFETY: `text_obj` is a freshly created `PyUnicode` ASCII digit string.
+        let raw = unsafe { pyo3::ffi::PyUnicode_AsUTF8AndSize(text_obj.as_ptr(), &mut size) };
+        if raw.is_null() {
+            // SAFETY: GIL is held.
+            unsafe { pyo3::ffi::PyErr_Clear() };
+            return Err(strict_miss());
+        }
+        // SAFETY: `raw` is valid UTF-8 of `size` bytes owned by `text_obj`.
+        let bytes = unsafe { std::slice::from_raw_parts(raw.cast::<u8>(), size as usize) };
+        self.out.extend_from_slice(bytes);
+        Ok(())
+    }
+
+    fn write_value(
+        &mut self,
+        py: Python<'_>,
+        ptr: *mut pyo3::ffi::PyObject,
+        depth: usize,
+    ) -> PyResult<()> {
+        // SAFETY: GIL is held and `ptr` is a valid borrowed `PyObject*`.
+        let ty = unsafe { pyo3::ffi::Py_TYPE(ptr) };
+        if ty == &raw mut pyo3::ffi::PyUnicode_Type {
+            return self.write_str(py, ptr);
+        }
+        if ty == &raw mut pyo3::ffi::PyLong_Type {
+            let mut overflow: std::ffi::c_int = 0;
+            // SAFETY: `ptr` is an exact `PyLong`, GIL is held.
+            let num = unsafe { pyo3::ffi::PyLong_AsLongLongAndOverflow(ptr, &mut overflow) };
+            if overflow != 0 {
+                return self.write_big_int(py, ptr);
+            }
+            push_i64(&mut self.out, num);
+            return Ok(());
+        }
+        if ty == &raw mut pyo3::ffi::PyFloat_Type {
+            // SAFETY: `ptr` is an exact `PyFloat`, GIL is held.
+            let num = unsafe { pyo3::ffi::PyFloat_AsDouble(ptr) };
+            return push_float(&mut self.out, num);
+        }
+        if ty == &raw mut pyo3::ffi::PyBool_Type {
+            // SAFETY: `Py_True` is a static singleton, GIL is held.
+            let is_true = ptr == unsafe { pyo3::ffi::Py_True() };
+            self.out
+                .extend_from_slice(if is_true { b"true" } else { b"false" });
+            return Ok(());
+        }
+        // SAFETY: `Py_None` is a static singleton, GIL is held.
+        if ptr == unsafe { pyo3::ffi::Py_None() } {
+            self.out.extend_from_slice(b"null");
+            return Ok(());
+        }
+        if ty == &raw mut pyo3::ffi::PyDict_Type {
+            return self.write_dict(py, ptr, depth);
+        }
+        if ty == &raw mut pyo3::ffi::PyList_Type {
+            return self.write_list(py, ptr, depth);
+        }
+        if ty == &raw mut pyo3::ffi::PyTuple_Type {
+            return self.write_tuple(py, ptr, depth);
+        }
+        Err(strict_miss())
+    }
+}
+
 /// One-pass check and encode of a `list[dict[str, object]]` response: the same
 /// bytes as [`encode_json_bytes`] when the value is an exact `list` of exact `dict`
 /// items whose keys, at every depth, are exact `str`, and no value needs Python
@@ -1541,7 +1770,7 @@ pub(crate) fn encode_json_bytes_strict(value: &Bound<'_, PyAny>) -> PyResult<Byt
     if !value.is_exact_instance_of::<PyList>() {
         return Err(strict_miss());
     }
-    encode_into(value, None, false, None, true)
+    StrictEncoder::encode_top_list(value.py(), value)
 }
 
 /// Serialise plain Python values (`dict`, `list`, `tuple`, `str`, `int`,
@@ -1760,10 +1989,10 @@ mod tests {
                 py,
                 crate::rows::PyProjectedRows::new(
                     payload,
-                    hinoki_orm::RowSet {
+                    hinoki_orm::RawRows::Decoded(hinoki_orm::RowSet {
                         columns: std::sync::Arc::from([]),
                         rows: Vec::new(),
-                    },
+                    }),
                     Vec::new(),
                     None,
                 ),
@@ -1817,6 +2046,63 @@ mod tests {
             nan.set_item("x", f64::NAN).unwrap();
             let nan_rows = PyList::new(py, [nan]).unwrap();
             assert!(encode_json_bytes_strict(nan_rows.as_any()).is_err());
+        });
+    }
+
+    #[test]
+    fn strict_encoder_handles_subclasses_bigints_surrogates_and_tuples() {
+        Python::initialize();
+        Python::attach(|py| {
+            // Nested tuple/list/dict/bool/int/float/None matches full encoder.
+            let payload = py
+                .eval(
+                    c"[{'a': (1, True, False, None, 1.5, 'hi\\n\"'), 'b': {'c': [-42, 0]}}]",
+                    None,
+                    None,
+                )
+                .unwrap();
+            let strict = encode_json_bytes_strict(&payload).unwrap();
+            assert_eq!(
+                strict.as_ref(),
+                br#"[{"a":[1,true,false,null,1.5,"hi\n\""],"b":{"c":[-42,0]}}]"#
+            );
+            assert_eq!(encode_json_bytes(&payload).unwrap(), strict);
+
+            // Exact big integer (> i64::MAX) is encoded directly in strict mode.
+            let big = py.eval(c"[{'n': 10**30}]", None, None).unwrap();
+            assert_eq!(
+                encode_json_bytes_strict(&big).unwrap().as_ref(),
+                b"[{\"n\":1000000000000000000000000000000}]"
+            );
+            assert_eq!(
+                encode_json_bytes(&big).unwrap().as_ref(),
+                b"[{\"n\":1000000000000000000000000000000}]"
+            );
+
+            // Subclasses of int/str/dict/list bail out of strict so custom __str__/methods are never skipped.
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+class MyInt(int): pass
+class MyStr(str): pass
+class MyDict(dict): pass
+class MyList(list): pass
+cases = [
+    [{'v': MyInt(7)}],
+    [{'v': MyStr('x')}],
+    [MyDict(a=1)],
+    MyList([{'a': 1}]),
+    [{'v': '\\ud800'}],
+]
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+            let cases = locals.get_item("cases").unwrap().unwrap();
+            for item in cases.cast::<PyList>().unwrap().iter() {
+                assert!(encode_json_bytes_strict(&item).is_err());
+            }
         });
     }
 }

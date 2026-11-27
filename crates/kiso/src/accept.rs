@@ -176,7 +176,7 @@ async fn serve_h1<S, B>(
 {
     let signals = Arc::new(Signals::default());
     let handover = Handover::default();
-    let transport = Transport {
+    let transport = Arc::new(Transport {
         secure,
         max_headers: config.max_headers,
         access_log: config.access_log,
@@ -187,12 +187,16 @@ async fn serve_h1<S, B>(
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
         handover: Arc::clone(&handover),
-    };
+    });
     let first = Arc::new(Notify::new());
     let first_seen = Arc::clone(&first);
+    let saw_first = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let service = service_fn(move |request| {
-        first_seen.notify_one();
-        respond(Arc::clone(&backend), peer, transport.clone(), request)
+        if !saw_first.load(std::sync::atomic::Ordering::Relaxed) {
+            saw_first.store(true, std::sync::atomic::Ordering::Relaxed);
+            first_seen.notify_one();
+        }
+        respond(Arc::clone(&backend), peer, Arc::clone(&transport), request)
     });
     let head_limit = config.max_header_bytes.saturating_add(REQUEST_LINE_MARGIN);
     let guarded = Guarded::new(
@@ -269,7 +273,7 @@ async fn serve_h2<S, B>(
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Backend,
 {
-    let transport = Transport {
+    let transport = Arc::new(Transport {
         secure: true,
         max_headers: config.max_headers,
         access_log: config.access_log,
@@ -280,13 +284,13 @@ async fn serve_h2<S, B>(
         body_read_timeout: config.body_read_timeout,
         signals: Arc::new(Signals::default()),
         handover: Handover::default(),
-    };
+    });
     let streams = Streams::new();
     let counted = Arc::clone(&streams);
     let service = service_fn(move |request| {
         let entry = counted.enter();
         track(
-            respond(Arc::clone(&backend), peer, transport.clone(), request),
+            respond(Arc::clone(&backend), peer, Arc::clone(&transport), request),
             entry,
         )
     });

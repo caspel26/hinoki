@@ -614,9 +614,9 @@ impl Core {
             native_crud,
             request_id_name: Arc::clone(&self.id_name),
             needs_headers,
-            params: params.clone(),
+            params,
             prepared_path_params,
-            client: head.peer.map(|peer| (peer.ip().to_string(), peer.port())),
+            client: head.peer,
             http_version: head.http_version,
             reply: Mutex::new(Some(sender)),
             permit: Mutex::new(Some(permit)),
@@ -626,12 +626,14 @@ impl Core {
             native_rows: Mutex::new(None),
             websocket: Mutex::new(websocket),
         };
-        let accepts_native_crud = route_plan.is_some_and(|route| {
-            let accept = joined_value(&request.headers, b"accept").unwrap_or_default();
-            std::str::from_utf8(&accept)
-                .is_ok_and(|accept| request::negotiate(accept, &route.media_types).is_some())
-        });
-        if native_execution && native_crud && accepts_native_crud {
+        let accepts_native_crud = native_execution
+            && native_crud
+            && route_plan.is_some_and(|route| {
+                let accept = joined_value(&request.headers, b"accept").unwrap_or_default();
+                std::str::from_utf8(&accept)
+                    .is_ok_and(|accept| request::negotiate(accept, &route.media_types).is_some())
+            });
+        if accepts_native_crud {
             let native_plan = action
                 .and_then(|number| self.crud_plans.get(&number))
                 .filter(|plan| {
@@ -646,13 +648,14 @@ impl Core {
                 .ok()
                 .and_then(|attached| attached.clone());
             if let (Some(plan), Some(database)) = (native_plan, database) {
+                let crud_params = request.params.clone();
                 return Ok(Outcome::NativeCrud {
                     request: Box::new(request),
                     receiver,
                     asked,
                     plan: Arc::clone(plan),
                     database,
-                    params,
+                    params: crud_params,
                     query: head.query.to_vec(),
                 });
             }

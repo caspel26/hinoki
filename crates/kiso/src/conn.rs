@@ -235,11 +235,13 @@ fn response_of(
         .ok_or_else(|| format!("status {status} cannot be sent"))?;
     let mut response = Response::new(body);
     *response.status_mut() = status;
+    let map = response.headers_mut();
+    map.reserve(headers.len());
     for (name, value) in &headers {
         let invalid = || format!("invalid header {:?}", String::from_utf8_lossy(name));
         let name = HeaderName::from_bytes(name).map_err(|_| invalid())?;
         let value = HeaderValue::from_bytes(value).map_err(|_| invalid())?;
-        response.headers_mut().append(name, value);
+        map.append(name, value);
     }
     Ok(response)
 }
@@ -443,17 +445,22 @@ fn server_timing(elapsed: Duration, lane: Option<Lane>) -> HeaderValue {
 pub async fn respond<B: Backend>(
     backend: Arc<B>,
     peer: SocketAddr,
-    transport: Transport,
+    transport: Arc<Transport>,
     mut request: Request<RequestBody>,
 ) -> Result<Response<Reply>, Infallible> {
-    let on_upgrade = hyper::upgrade::on(&mut request);
+    let on_upgrade = request
+        .headers()
+        .contains_key(hyper::header::UPGRADE)
+        .then(|| hyper::upgrade::on(&mut request));
     let head_only = request.method() == Method::HEAD;
     let version = request.version();
     let (parts, body) = request.into_parts();
     let body = (!body.is_end_stream()).then(|| BodyReader::new(body, transport.body_read_timeout));
     let finished = body.as_ref().map(BodyReader::finished);
     let incoming = incoming_of(&parts, body, peer, &transport);
-    let started = Instant::now();
+    let needs_clock =
+        transport.access_log.is_some() || transport.server_timing || transport.metrics.is_some();
+    let started = needs_clock.then(Instant::now);
     let logged = transport
         .access_log
         .map(|style| (style, incoming.clone_head()));
@@ -470,7 +477,10 @@ pub async fn respond<B: Backend>(
     let delivery = backend.deliver(incoming).await;
     let mut invalid = false;
     let built = match delivery {
-        Delivery::Upgrade(accepted) => switch(*accepted, &handshake, on_upgrade, &transport),
+        Delivery::Upgrade(accepted) => match on_upgrade {
+            Some(on_upgrade) => switch(*accepted, &handshake, on_upgrade, &transport),
+            None => Err("there is no WebSocket handshake to accept".to_owned()),
+        },
         other => response_of(other, head_only, offer.as_ref()),
     };
     let mut response = built.unwrap_or_else(|reason| {
@@ -481,12 +491,16 @@ pub async fn respond<B: Backend>(
         plain(StatusCode::INTERNAL_SERVER_ERROR)
     });
     if let Some(metered) = metered {
-        response = metered.record(response, started.elapsed(), invalid);
+        let elapsed = started.as_ref().map_or(Duration::ZERO, Instant::elapsed);
+        response = metered.record(response, elapsed, invalid);
     }
     let status = response.status().as_u16();
-    let timing = timed.map(|trace| server_timing(started.elapsed(), trace.lane()));
+    let timing = timed.map(|trace| {
+        let elapsed = started.as_ref().map_or(Duration::ZERO, Instant::elapsed);
+        server_timing(elapsed, trace.lane())
+    });
     if let Some((style, head)) = logged {
-        let elapsed = started.elapsed();
+        let elapsed = started.as_ref().map_or(Duration::ZERO, Instant::elapsed);
         if transport.log_filter.keeps(&head.path, status, elapsed) {
             head.log(style, status, elapsed, transport.log_filter.sink.as_ref());
         }

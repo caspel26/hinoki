@@ -6,7 +6,10 @@ use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use hinoki_orm::links::{apply, Canon, LinkOp, LinkWrite};
-use hinoki_orm::{Database, DbError, ErrorKind, PageQueries, RowSet, Transaction, Value};
+use hinoki_orm::{
+    Database, DbError, ErrorKind, PageQueries, PgRows, PgSession, RawRows, RowSet, Transaction,
+    Value,
+};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
@@ -16,9 +19,11 @@ use crate::cursor::{CursorQuery, CursorWire, PyCursorCodec};
 use crate::links::{outcome_to_py, raw_keys, scope_of, PyLinkSpec, RawScope};
 use crate::modelrows::{models_to_py, PyModelRows};
 use crate::rows::{
-    group_prefetch_rows, group_prefetch_rows_single, PageWireResult, PrefetchPlan, PrefetchSlot,
-    PrefetchedJson, PrefetchedRows, ProjectedListResult, ProjectedOneResult, ProjectedPageResult,
-    PyProjectedRows, PyRowPlan, RowPlan,
+    encode_item_pg_with, encode_list_pg_with, encode_page_pg_with, group_prefetch_rows,
+    group_prefetch_rows_pg, group_prefetch_rows_pg_single, group_prefetch_rows_single,
+    PageWireResult, PrefetchPlan, PrefetchSlot, PrefetchedJson, PrefetchedRows,
+    ProjectedListResult, ProjectedOneResult, ProjectedPageResult, PyProjectedRows, PyRowPlan,
+    RowPlan,
 };
 
 pyo3::create_exception!(core, DatabaseError, pyo3::exceptions::PyException);
@@ -434,6 +439,12 @@ impl PyDatabase {
     ) -> PyResult<Bound<'py, PyAny>> {
         let (db, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
         let fut = async move {
+            if let Some(session) = db.acquire_pg().await? {
+                let rows = session.fetch_pg(&sql, &values).await?;
+                let result = finish_projected_list_pg(&session, rows, &plan).await?;
+                session.release();
+                return Ok(result);
+            }
             let rows = db.fetch_set(&sql, &values).await?;
             finish_projected_list_db(&db, rows, &plan).await
         };
@@ -450,6 +461,12 @@ impl PyDatabase {
     ) -> PyResult<Bound<'py, PyAny>> {
         let (db, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
         let fut = async move {
+            if let Some(session) = db.acquire_pg().await? {
+                let rows = session.fetch_pg(&sql, &values).await?;
+                let result = finish_projected_one_pg(&session, rows, &plan).await?;
+                session.release();
+                return Ok(result);
+            }
             let rows = db.fetch_set(&sql, &values).await?;
             finish_projected_one_db(&db, rows, &plan).await
         };
@@ -481,6 +498,13 @@ impl PyDatabase {
                 count_sql: &count_sql,
                 count_params: &count_values,
             };
+            if let Some(session) = db.acquire_pg().await? {
+                let (rows, total) = session.fetch_pg_page(&queries, concurrent).await?;
+                let result =
+                    finish_projected_page_pg(&session, rows, total, &plan, page, page_size).await?;
+                session.release();
+                return Ok(result);
+            }
             let (rows, total) = db.fetch_page_set(&queries, concurrent).await?;
             finish_projected_page_db(&db, rows, total, &plan, page, page_size).await
         };
@@ -662,7 +686,7 @@ fn group_all_prefetches(
             None => group_prefetch_rows(prefetch, plan.key_kind(), &rows)?,
         };
         encoded.push(grouped);
-        retained.push((prefetch.name.clone(), rows));
+        retained.push((prefetch.name.clone(), RawRows::Decoded(rows)));
     }
     Some((encoded, retained))
 }
@@ -672,9 +696,148 @@ fn empty_prefetches(plan: &RowPlan) -> (PrefetchedJson, PrefetchedRows) {
     let retained = plan
         .prefetches()
         .iter()
-        .map(|p| (p.name.clone(), RowSet::default()))
+        .map(|p| (p.name.clone(), RawRows::Decoded(RowSet::default())))
         .collect();
     (encoded, retained)
+}
+
+async fn fetch_one_prefetch_pg(
+    session: &PgSession,
+    prefetch: &PrefetchPlan,
+    owners: &[Value],
+) -> Result<PgRows, DbError> {
+    if owners.len() <= PREFETCH_IN_CHUNK {
+        let (sql, params) = prefetch
+            .compile_chunk(owners)
+            .map_err(|e| DbError::new(ErrorKind::Other, e.to_string()))?;
+        return session.fetch_pg(&sql, &params).await;
+    }
+    let mut all = PgRows::default();
+    for chunk in owners.chunks(PREFETCH_IN_CHUNK) {
+        let (sql, params) = prefetch
+            .compile_chunk(chunk)
+            .map_err(|e| DbError::new(ErrorKind::Other, e.to_string()))?;
+        all.extend_from(session.fetch_pg(&sql, &params).await?);
+    }
+    Ok(all)
+}
+
+fn group_all_prefetches_pg(
+    plan: &RowPlan,
+    raw: Vec<PgRows>,
+    single_owner: Option<&Canon>,
+) -> Option<(PrefetchedJson, PrefetchedRows)> {
+    let mut encoded = Vec::with_capacity(raw.len());
+    let mut retained = Vec::with_capacity(raw.len());
+    for (prefetch, rows) in plan.prefetches().iter().zip(raw) {
+        let grouped = match single_owner {
+            Some(owner) => {
+                group_prefetch_rows_pg_single(prefetch, plan.key_kind(), owner.clone(), &rows)?
+            }
+            None => group_prefetch_rows_pg(prefetch, plan.key_kind(), &rows)?,
+        };
+        encoded.push(grouped);
+        retained.push((prefetch.name.clone(), RawRows::Postgres(rows)));
+    }
+    Some((encoded, retained))
+}
+
+async fn load_prefetches_pg(
+    session: &PgSession,
+    plan: &RowPlan,
+    rows: &PgRows,
+) -> Result<Option<(PrefetchedJson, PrefetchedRows)>, DbError> {
+    let prefetches = plan.prefetches();
+    if prefetches.is_empty() {
+        return Ok(Some((Vec::new(), Vec::new())));
+    }
+    if rows.is_empty() {
+        return Ok(Some(empty_prefetches(plan)));
+    }
+    let Some((owners, single_owner)) = plan.owner_values_pg(rows) else {
+        return Ok(None);
+    };
+    let raw = match prefetches {
+        [one] => vec![fetch_one_prefetch_pg(session, one, &owners).await?],
+        [first, second] if owners.len() <= PREFETCH_IN_CHUNK => {
+            let (sql_a, params_a) = first
+                .compile_chunk(&owners)
+                .map_err(|e| DbError::new(ErrorKind::Other, e.to_string()))?;
+            let (sql_b, params_b) = second
+                .compile_chunk(&owners)
+                .map_err(|e| DbError::new(ErrorKind::Other, e.to_string()))?;
+            let (a, b) = session
+                .fetch_pg_pair((&sql_a, &params_a), (&sql_b, &params_b))
+                .await?;
+            vec![a, b]
+        }
+        many => {
+            let mut out = Vec::with_capacity(many.len());
+            for prefetch in many {
+                out.push(fetch_one_prefetch_pg(session, prefetch, &owners).await?);
+            }
+            out
+        }
+    };
+    Ok(group_all_prefetches_pg(plan, raw, single_owner.as_ref()))
+}
+
+async fn finish_projected_list_pg(
+    session: &PgSession,
+    rows: PgRows,
+    plan: &RowPlan,
+) -> Result<ProjectedListResult, DbError> {
+    let Some((encoded, retained)) = load_prefetches_pg(session, plan, &rows).await? else {
+        return Ok(ProjectedListResult::Fallback(rows.to_row_set()?));
+    };
+    Ok(match encode_list_pg_with(&rows, plan, &encoded) {
+        Some(json) => ProjectedListResult::Encoded(json, RawRows::Postgres(rows), retained),
+        None => ProjectedListResult::Fallback(rows.to_row_set()?),
+    })
+}
+
+async fn finish_projected_one_pg(
+    session: &PgSession,
+    rows: PgRows,
+    plan: &RowPlan,
+) -> Result<ProjectedOneResult, DbError> {
+    if rows.is_empty() {
+        return Ok(ProjectedOneResult::Empty);
+    }
+    if rows.len() > 1 {
+        return Ok(ProjectedOneResult::Multiple);
+    }
+    let Some((encoded, retained)) = load_prefetches_pg(session, plan, &rows).await? else {
+        return Ok(ProjectedOneResult::Fallback(rows.to_row_set()?));
+    };
+    Ok(match encode_item_pg_with(&rows, plan, &encoded) {
+        Some(json) => ProjectedOneResult::Encoded(json, RawRows::Postgres(rows), retained),
+        None => ProjectedOneResult::Fallback(rows.to_row_set()?),
+    })
+}
+
+async fn finish_projected_page_pg(
+    session: &PgSession,
+    rows: PgRows,
+    total: i64,
+    plan: &RowPlan,
+    page: u64,
+    page_size: u64,
+) -> Result<ProjectedPageResult, DbError> {
+    let Some(count) = u64::try_from(total).ok() else {
+        return Ok(ProjectedPageResult::Fallback(rows.to_row_set()?, total));
+    };
+    let Some((encoded, retained)) = load_prefetches_pg(session, plan, &rows).await? else {
+        return Ok(ProjectedPageResult::Fallback(rows.to_row_set()?, total));
+    };
+    Ok(
+        match encode_page_pg_with(&rows, plan, &encoded, page, page_size, count) {
+            Some(json) => {
+                ProjectedPageResult::Encoded(json, RawRows::Postgres(rows), retained, count)
+            }
+            None => ProjectedPageResult::Fallback(rows.to_row_set()?, total),
+        },
+    )
 }
 
 async fn load_prefetches_db(
@@ -744,7 +907,7 @@ async fn finish_projected_list_db(
     };
     Ok(
         match crate::rows::encode_list_set_with(&rows, plan, &encoded) {
-            Some(json) => ProjectedListResult::Encoded(json, rows, retained),
+            Some(json) => ProjectedListResult::Encoded(json, RawRows::Decoded(rows), retained),
             None => ProjectedListResult::Fallback(rows),
         },
     )
@@ -760,7 +923,7 @@ async fn finish_projected_list_tx(
     };
     Ok(
         match crate::rows::encode_list_set_with(&rows, plan, &encoded) {
-            Some(json) => ProjectedListResult::Encoded(json, rows, retained),
+            Some(json) => ProjectedListResult::Encoded(json, RawRows::Decoded(rows), retained),
             None => ProjectedListResult::Fallback(rows),
         },
     )
@@ -782,7 +945,7 @@ async fn finish_projected_one_db(
     };
     Ok(
         match crate::rows::encode_item_set_with_prefetches(&rows, plan, &encoded) {
-            Some(json) => ProjectedOneResult::Encoded(json, rows, retained),
+            Some(json) => ProjectedOneResult::Encoded(json, RawRows::Decoded(rows), retained),
             None => ProjectedOneResult::Fallback(rows),
         },
     )
@@ -804,7 +967,7 @@ async fn finish_projected_one_tx(
     };
     Ok(
         match crate::rows::encode_item_set_with_prefetches(&rows, plan, &encoded) {
-            Some(json) => ProjectedOneResult::Encoded(json, rows, retained),
+            Some(json) => ProjectedOneResult::Encoded(json, RawRows::Decoded(rows), retained),
             None => ProjectedOneResult::Fallback(rows),
         },
     )
@@ -831,7 +994,9 @@ async fn finish_projected_page_db(
             &encoded,
             (page, page_size, count),
         ) {
-            Some(json) => ProjectedPageResult::Encoded(json, rows, retained, count),
+            Some(json) => {
+                ProjectedPageResult::Encoded(json, RawRows::Decoded(rows), retained, count)
+            }
             None => ProjectedPageResult::Fallback(rows, total),
         },
     )
@@ -858,7 +1023,9 @@ async fn finish_projected_page_tx(
             &encoded,
             (page, page_size, count),
         ) {
-            Some(json) => ProjectedPageResult::Encoded(json, rows, retained, count),
+            Some(json) => {
+                ProjectedPageResult::Encoded(json, RawRows::Decoded(rows), retained, count)
+            }
             None => ProjectedPageResult::Fallback(rows, total),
         },
     )

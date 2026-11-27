@@ -5,7 +5,7 @@ use hinoki_orm::links::{Canon, KeyKind};
 use hinoki_orm::query::{
     compile_select_bound, compile_select_linked, Dialect, Filter, Join, Op, QueryError, Select,
 };
-use hinoki_orm::{RowSet, Value};
+use hinoki_orm::{PgCell, PgRows, RawRows, RowSet, Value};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
@@ -246,7 +246,7 @@ impl PrefetchSlot {
 pub(crate) type PrefetchedJson = Vec<PrefetchSlot>;
 
 /// Raw child rows per prefetch slot, retained for lazy Python materialization.
-pub(crate) type PrefetchedRows = Vec<(String, RowSet)>;
+pub(crate) type PrefetchedRows = Vec<(String, RawRows)>;
 
 /// Metadata only: this plan owns no Python objects and is safe in a Tokio task.
 #[derive(Clone, Debug)]
@@ -283,17 +283,17 @@ pub(crate) enum PageWireResult {
 }
 
 pub(crate) enum ProjectedListResult {
-    Encoded(Vec<u8>, RowSet, PrefetchedRows),
+    Encoded(Vec<u8>, RawRows, PrefetchedRows),
     Fallback(RowSet),
 }
 
 pub(crate) enum ProjectedPageResult {
-    Encoded(Vec<u8>, RowSet, PrefetchedRows, u64),
+    Encoded(Vec<u8>, RawRows, PrefetchedRows, u64),
     Fallback(RowSet, i64),
 }
 
 pub(crate) enum ProjectedOneResult {
-    Encoded(Vec<u8>, RowSet, PrefetchedRows),
+    Encoded(Vec<u8>, RawRows, PrefetchedRows),
     Empty,
     Multiple,
     Fallback(RowSet),
@@ -308,7 +308,7 @@ pub(crate) enum ProjectedOneResult {
 #[pyclass(name = "_ProjectedRows", module = "hinoki.core")]
 pub(crate) struct PyProjectedRows {
     pub(crate) json: Bytes,
-    rows: RowSet,
+    rows: RawRows,
     prefetched: PrefetchedRows,
     pub(crate) page_info: Option<(u64, u64, u64)>,
 }
@@ -316,7 +316,7 @@ pub(crate) struct PyProjectedRows {
 impl PyProjectedRows {
     pub(crate) fn new(
         json: impl Into<Bytes>,
-        rows: RowSet,
+        rows: RawRows,
         prefetched: PrefetchedRows,
         page_info: Option<(u64, u64, u64)>,
     ) -> Self {
@@ -346,13 +346,18 @@ impl PyProjectedRows {
     }
 
     fn rows<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        crate::db::row_set_to_py(py, &self.rows).map(|obj| obj.into_bound(py))
+        let set = self
+            .rows
+            .to_row_set()
+            .map_err(|e| crate::db::db_error(py, &e))?;
+        crate::db::row_set_to_py(py, &set).map(|obj| obj.into_bound(py))
     }
 
     fn prefetched_rows<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
         for (name, rows) in &self.prefetched {
-            let py_rows = crate::db::row_set_to_py(py, rows)?;
+            let set = rows.to_row_set().map_err(|e| crate::db::db_error(py, &e))?;
+            let py_rows = crate::db::row_set_to_py(py, &set)?;
             out.set_item(name, py_rows)?;
         }
         Ok(out)
@@ -1428,6 +1433,271 @@ fn write_float(output: &mut Vec<u8>, value: f64) -> Option<()> {
         return None;
     }
     serde_json::to_writer(output, &value).ok()
+}
+
+// ---------------------------------------------------------------------------
+// Direct zero-copy `PgRows` → JSON encoding (no intermediate `RowSet`/`String`)
+// ---------------------------------------------------------------------------
+
+impl RowPlan {
+    pub(crate) fn owner_values_pg(&self, rows: &PgRows) -> Option<(Vec<Value>, Option<Canon>)> {
+        let key_index = self.key_index?;
+        let mut seen = HashSet::with_capacity(rows.len());
+        let mut out = Vec::with_capacity(rows.len());
+        let mut first_canon = None;
+        for row_idx in 0..rows.len() {
+            let (canon, val) = rows.key_value(row_idx, key_index, self.key_kind)?;
+            if seen.insert(canon.clone()) {
+                if first_canon.is_none() {
+                    first_canon = Some(canon);
+                }
+                out.push(val);
+            }
+        }
+        let single = if out.len() == 1 { first_canon } else { None };
+        Some((out, single))
+    }
+}
+
+pub(crate) fn group_prefetch_rows_pg(
+    prefetch: &PrefetchPlan,
+    key_kind: KeyKind,
+    rows: &PgRows,
+) -> Option<PrefetchSlot> {
+    if !rows.is_empty() && !rows.columns_match(&prefetch.child_plan.columns) {
+        return None;
+    }
+    let mut grouped: HashMap<Canon, Vec<u8>> = HashMap::new();
+    let mut counts: HashMap<Canon, usize> = HashMap::new();
+    for row_idx in 0..rows.len() {
+        let owner = rows.canon_key(row_idx, prefetch.link_column_index, key_kind)?;
+        if let Some(limit) = prefetch.max_items {
+            let count = counts.entry(owner.clone()).or_insert(0);
+            *count += 1;
+            if *count > limit {
+                return None;
+            }
+        }
+        let buf = grouped
+            .entry(owner)
+            .or_insert_with(|| Vec::with_capacity(prefetch.child_plan.fixed_row_bytes));
+        if !buf.is_empty() {
+            buf.push(b',');
+        }
+        write_pg_row(buf, rows, row_idx, &prefetch.child_plan, &[])?;
+    }
+    Some(PrefetchSlot::Multi(grouped))
+}
+
+pub(crate) fn group_prefetch_rows_pg_single(
+    prefetch: &PrefetchPlan,
+    key_kind: KeyKind,
+    owner: Canon,
+    rows: &PgRows,
+) -> Option<PrefetchSlot> {
+    if !rows.is_empty() && !rows.columns_match(&prefetch.child_plan.columns) {
+        return None;
+    }
+    if let Some(limit) = prefetch.max_items {
+        if rows.len() > limit {
+            return None;
+        }
+    }
+    let mut buf = Vec::with_capacity(
+        rows.len()
+            .saturating_mul(prefetch.child_plan.fixed_row_bytes),
+    );
+    for row_idx in 0..rows.len() {
+        let row_owner = rows.canon_key(row_idx, prefetch.link_column_index, key_kind)?;
+        if row_owner != owner {
+            return None;
+        }
+        if !buf.is_empty() {
+            buf.push(b',');
+        }
+        write_pg_row(&mut buf, rows, row_idx, &prefetch.child_plan, &[])?;
+    }
+    Some(PrefetchSlot::Single { owner, items: buf })
+}
+
+fn estimate_pg_capacity(rows: &PgRows, plan: &RowPlan, prefetched: &[PrefetchSlot]) -> usize {
+    let per_row = plan
+        .fixed_row_bytes
+        .saturating_add(plan.text_columns.len().saturating_mul(64))
+        .saturating_add(plan.bytes_columns.len().saturating_mul(64));
+    let base = rows.len().saturating_mul(per_row);
+    let pref: usize = prefetched.iter().map(PrefetchSlot::estimated_bytes).sum();
+    base.saturating_add(pref)
+        .saturating_add(64)
+        .min(MAX_INITIAL_CAPACITY)
+}
+
+pub(crate) fn encode_list_pg_with(
+    rows: &PgRows,
+    plan: &RowPlan,
+    prefetched: &[PrefetchSlot],
+) -> Option<Vec<u8>> {
+    if !rows.is_empty() && !rows.columns_match(&plan.columns) {
+        return None;
+    }
+    let mut output = Vec::with_capacity(estimate_pg_capacity(rows, plan, prefetched));
+    output.push(b'[');
+    for row_idx in 0..rows.len() {
+        if row_idx > 0 {
+            output.push(b',');
+        }
+        write_pg_row(&mut output, rows, row_idx, plan, prefetched)?;
+    }
+    output.push(b']');
+    Some(output)
+}
+
+pub(crate) fn encode_page_pg_with(
+    rows: &PgRows,
+    plan: &RowPlan,
+    prefetched: &[PrefetchSlot],
+    page: u64,
+    page_size: u64,
+    total: u64,
+) -> Option<Vec<u8>> {
+    if page == 0 || page_size == 0 {
+        return None;
+    }
+    if !rows.is_empty() && !rows.columns_match(&plan.columns) {
+        return None;
+    }
+    let mut output = Vec::with_capacity(estimate_pg_capacity(rows, plan, prefetched));
+    output.extend_from_slice(b"{\"items\":[");
+    for row_idx in 0..rows.len() {
+        if row_idx > 0 {
+            output.push(b',');
+        }
+        write_pg_row(&mut output, rows, row_idx, plan, prefetched)?;
+    }
+    write_page_trailer(&mut output, page, page_size, total)?;
+    Some(output)
+}
+
+pub(crate) fn encode_item_pg_with(
+    rows: &PgRows,
+    plan: &RowPlan,
+    prefetched: &[PrefetchSlot],
+) -> Option<Vec<u8>> {
+    if rows.len() != 1 || !rows.columns_match(&plan.columns) {
+        return None;
+    }
+    let mut output = Vec::with_capacity(estimate_pg_capacity(rows, plan, prefetched));
+    write_pg_row(&mut output, rows, 0, plan, prefetched)?;
+    Some(output)
+}
+
+fn write_pg_row(
+    output: &mut Vec<u8>,
+    rows: &PgRows,
+    row_idx: usize,
+    plan: &RowPlan,
+    prefetched: &[PrefetchSlot],
+) -> Option<()> {
+    if rows.column_count() != plan.columns.len() {
+        return None;
+    }
+    output.push(b'{');
+    for (index, field) in plan.fields.iter().enumerate() {
+        if index > 0 {
+            output.push(b',');
+        }
+        output.extend_from_slice(&field.quoted_key);
+        match field.kind {
+            Kind::Ids => return None,
+            Kind::Nested => write_pg_nested(
+                output,
+                rows,
+                row_idx,
+                plan.nested.get(field.slot)?,
+                field.nullable,
+            )?,
+            Kind::Prefetch => {
+                let slot = prefetched.get(field.slot)?;
+                let key = rows.canon_key(row_idx, plan.key_index?, plan.key_kind)?;
+                write_prefetch(output, slot.get(&key));
+            }
+            _ => write_pg_cell(output, rows.cell(row_idx, field.column_index)?, field)?,
+        }
+    }
+    output.push(b'}');
+    Some(())
+}
+
+fn write_pg_nested(
+    output: &mut Vec<u8>,
+    rows: &PgRows,
+    row_idx: usize,
+    nested: &NestedPlan,
+    nullable: bool,
+) -> Option<()> {
+    if matches!(rows.cell(row_idx, nested.key_column_index)?, PgCell::Null) {
+        if !nullable || !matches!(rows.cell(row_idx, nested.fk_column_index)?, PgCell::Null) {
+            return None;
+        }
+        output.extend_from_slice(b"null");
+        return Some(());
+    }
+    output.push(b'{');
+    for (index, field) in nested.fields.iter().enumerate() {
+        if index > 0 {
+            output.push(b',');
+        }
+        output.extend_from_slice(&field.quoted_key);
+        write_pg_cell(output, rows.cell(row_idx, field.column_index)?, field)?;
+    }
+    output.push(b'}');
+    Some(())
+}
+
+fn write_pg_cell(output: &mut Vec<u8>, cell: PgCell<'_>, field: &Field) -> Option<()> {
+    if matches!(cell, PgCell::Null) {
+        if field.nullable {
+            output.extend_from_slice(b"null");
+            return Some(());
+        }
+        return None;
+    }
+    match (field.kind, cell) {
+        (Kind::Text, PgCell::Text(value)) => write_json(output, value),
+        (Kind::Int, PgCell::Int(value)) => {
+            write_i64(output, value);
+            Some(())
+        }
+        (Kind::Float, PgCell::Float(value)) => write_float(output, value),
+        (Kind::Bool, PgCell::Bool(value)) => {
+            output.extend_from_slice(if value { b"true" } else { b"false" });
+            Some(())
+        }
+        (Kind::Uuid, PgCell::Uuid(value)) => {
+            write_uuid(output, &value);
+            Some(())
+        }
+        (Kind::Timestamp, PgCell::Timestamp(value)) => {
+            if !python_datetime_representable(&value) {
+                return None;
+            }
+            output.push(b'"');
+            hinoki_orm::write_timestamp_iso(output, &value);
+            output.push(b'"');
+            Some(())
+        }
+        (Kind::Bytes, PgCell::Bytes(value)) => write_bytes_base64(output, value),
+        (Kind::Decimal, PgCell::Text(value)) => write_decimal(output, value),
+        (Kind::Decimal, PgCell::Numeric(ref value)) => write_decimal(output, value),
+        (Kind::Date, PgCell::Text(value)) => {
+            crate::schema::parse_date(value)?;
+            output.push(b'"');
+            output.extend_from_slice(value.as_bytes());
+            output.push(b'"');
+            Some(())
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]

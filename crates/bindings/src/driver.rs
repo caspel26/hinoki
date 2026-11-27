@@ -22,9 +22,10 @@ type Convert = Box<dyn FnOnce(Python<'_>) -> PyResult<Py<PyAny>> + Send>;
 type Work = Pin<Box<dyn Future<Output = Convert> + Send>>;
 
 /// A pending piece of Rust work a coroutine awaits.
-#[pyclass(module = "hinoki.core", name = "_NativeWait")]
+#[pyclass(module = "hinoki.core", name = "_NativeWait", frozen)]
 pub struct NativeWait {
     work: Mutex<Option<Work>>,
+    yielded: std::sync::atomic::AtomicBool,
 }
 
 impl NativeWait {
@@ -47,6 +48,7 @@ impl NativeWait {
         };
         Self {
             work: Mutex::new(Some(Box::pin(work))),
+            yielded: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -58,47 +60,38 @@ impl NativeWait {
 
 #[pymethods]
 impl NativeWait {
-    fn __await__(slf: Bound<'_, Self>) -> PyResult<Py<WaitIter>> {
-        Py::new(
-            slf.py(),
-            WaitIter {
-                wait: Some(slf.unbind()),
-            },
-        )
-    }
-}
-
-/// The iterator `await` runs: it yields the wait once, then ends with the
-/// value the driver sends back, or raises the error it throws.
-#[pyclass(module = "hinoki.core", name = "_NativeWaitIter")]
-pub struct WaitIter {
-    wait: Option<Py<NativeWait>>,
-}
-
-#[pymethods]
-impl WaitIter {
-    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+    fn __await__(slf: Bound<'_, Self>) -> Bound<'_, Self> {
         slf
     }
 
-    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<Py<NativeWait>>> {
-        self.send(py.None().into_bound(py))
+    fn __iter__(slf: Bound<'_, Self>) -> Bound<'_, Self> {
+        slf
     }
 
-    fn send(&mut self, value: Bound<'_, PyAny>) -> PyResult<Option<Py<NativeWait>>> {
-        if let Some(wait) = self.wait.take() {
-            return Ok(Some(wait));
+    fn __next__(slf: Bound<'_, Self>, py: Python<'_>) -> PyResult<Option<Py<Self>>> {
+        Self::send(slf, py.None().into_bound(py))
+    }
+
+    fn send(slf: Bound<'_, Self>, value: Bound<'_, PyAny>) -> PyResult<Option<Py<Self>>> {
+        if !slf
+            .get()
+            .yielded
+            .swap(true, std::sync::atomic::Ordering::Relaxed)
+        {
+            return Ok(Some(slf.unbind()));
         }
         Err(PyStopIteration::new_err((value.unbind(),)))
     }
 
-    fn throw(&mut self, error: Bound<'_, PyAny>) -> PyResult<Option<Py<NativeWait>>> {
-        self.wait = None;
+    fn throw(&self, error: Bound<'_, PyAny>) -> PyResult<Option<Py<Self>>> {
+        self.yielded
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         Err(PyErr::from_value(error))
     }
 
-    fn close(&mut self) {
-        self.wait = None;
+    fn close(&self) {
+        self.yielded
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -145,15 +138,16 @@ pub enum Step {
 
 /// Call `method` of `coro`, inside `ctx` when there is one.
 fn call_in<'py>(
+    py: Python<'py>,
     coro: &Bound<'py, PyAny>,
     ctx: Option<&Bound<'py, PyAny>>,
-    method: &str,
+    method: &Bound<'py, pyo3::types::PyString>,
     arg: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let method = coro.getattr(method)?;
+    let bound = coro.getattr(method)?;
     match ctx {
-        Some(ctx) => ctx.call_method1("run", (method, arg)),
-        None => method.call1((arg,)),
+        Some(ctx) => ctx.call_method1(pyo3::intern!(py, "run"), (bound, arg)),
+        None => bound.call1((arg,)),
     }
 }
 
@@ -166,11 +160,18 @@ pub fn advance<'py>(
 ) -> PyResult<Step> {
     let _driving = Driving::enter();
     let outcome = match resume {
-        Resume::Value(value) => call_in(coro, ctx, "send", value.into_bound(py)),
-        Resume::Error(error) => call_in(
+        Resume::Value(value) => call_in(
+            py,
             coro,
             ctx,
-            "throw",
+            pyo3::intern!(py, "send"),
+            value.into_bound(py),
+        ),
+        Resume::Error(error) => call_in(
+            py,
+            coro,
+            ctx,
+            pyo3::intern!(py, "throw"),
             error.into_value(py).into_bound(py).into_any(),
         ),
     };
@@ -180,7 +181,7 @@ pub fn advance<'py>(
             Err(other) => Step::Foreign(other.into_inner().unbind()),
         }),
         Err(error) if error.is_instance_of::<PyStopIteration>(py) => {
-            let value = error.value(py).getattr("value")?;
+            let value = error.value(py).getattr(pyo3::intern!(py, "value"))?;
             Ok(Step::Done(value.unbind()))
         }
         Err(error) => Err(error),

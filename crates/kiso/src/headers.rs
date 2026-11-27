@@ -21,6 +21,20 @@ pub const fn is_bodyless(status: u16) -> bool {
     status == 204 || status == 304
 }
 
+fn usize_bytes(mut value: usize) -> Vec<u8> {
+    let mut digits = [0u8; 20];
+    let mut at = digits.len();
+    loop {
+        at -= 1;
+        digits[at] = b'0' + (value % 10) as u8;
+        value /= 10;
+        if value == 0 {
+            break;
+        }
+    }
+    digits[at..].to_vec()
+}
+
 /// The answer's own headers without policy headers and the request id, then the
 /// policy headers, the route headers nothing above already set, the request id,
 /// `extra` (CORS), and `content-length` unless the status is bodyless.
@@ -35,10 +49,7 @@ pub fn final_headers(
 ) -> Vec<Header> {
     let mut out = head_headers(own, policy, route, id, extra);
     if !is_bodyless(status) {
-        out.push((
-            b"content-length".to_vec(),
-            body_len.to_string().into_bytes(),
-        ));
+        out.push((b"content-length".to_vec(), usize_bytes(body_len)));
     }
     out
 }

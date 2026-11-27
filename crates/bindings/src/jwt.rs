@@ -442,19 +442,156 @@ pub fn jwt_encode(claims: &[u8], key: KeySpec) -> PyResult<String> {
 /// Rules are `(now, leeway, issuer, audience, require_exp)`.
 type RuleSpec = (i64, i64, Option<String>, Option<String>, bool);
 
+fn decode_segment_with<R>(text: &str, f: impl FnOnce(&[u8]) -> Result<R, Fail>) -> Result<R, Fail> {
+    if text.len() <= 680 {
+        let mut buf = [0u8; 512];
+        let len = URL_SAFE_NO_PAD
+            .decode_slice(text, &mut buf)
+            .map_err(|_| Fail::Malformed)?;
+        return f(&buf[..len]);
+    }
+    let decoded = URL_SAFE_NO_PAD.decode(text).map_err(|_| Fail::Malformed)?;
+    f(&decoded)
+}
+
+#[derive(Clone)]
+enum CompiledVerifier {
+    Hs256(Hmac<Sha256>),
+    Hs384(Hmac<Sha384>),
+    Hs512(Hmac<Sha512>),
+    EdDsa(VerifyingKey),
+}
+
+struct CompiledKey {
+    kid: Option<String>,
+    alg: Alg,
+    verifier: CompiledVerifier,
+}
+
+impl CompiledKey {
+    fn from_key(key: &Key) -> Result<Self, Fail> {
+        let verifier = match key.alg {
+            Alg::Hs256 => CompiledVerifier::Hs256(
+                Hmac::<Sha256>::new_from_slice(&key.bytes).map_err(|_| Fail::Key)?,
+            ),
+            Alg::Hs384 => CompiledVerifier::Hs384(
+                Hmac::<Sha384>::new_from_slice(&key.bytes).map_err(|_| Fail::Key)?,
+            ),
+            Alg::Hs512 => CompiledVerifier::Hs512(
+                Hmac::<Sha512>::new_from_slice(&key.bytes).map_err(|_| Fail::Key)?,
+            ),
+            Alg::EdDsa => {
+                let public = if key.public {
+                    let raw: [u8; 32] = key.bytes.as_slice().try_into().map_err(|_| Fail::Key)?;
+                    VerifyingKey::from_bytes(&raw).map_err(|_| Fail::Key)?
+                } else {
+                    let seed: [u8; 32] = key.bytes.as_slice().try_into().map_err(|_| Fail::Key)?;
+                    SigningKey::from_bytes(&seed).verifying_key()
+                };
+                CompiledVerifier::EdDsa(public)
+            }
+        };
+        Ok(Self {
+            kid: key.kid.clone(),
+            alg: key.alg,
+            verifier,
+        })
+    }
+
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), Fail> {
+        match &self.verifier {
+            CompiledVerifier::Hs256(base) => {
+                let mut mac = base.clone();
+                mac.update(message);
+                mac.verify_slice(signature).map_err(|_| Fail::Signature)
+            }
+            CompiledVerifier::Hs384(base) => {
+                let mut mac = base.clone();
+                mac.update(message);
+                mac.verify_slice(signature).map_err(|_| Fail::Signature)
+            }
+            CompiledVerifier::Hs512(base) => {
+                let mut mac = base.clone();
+                mac.update(message);
+                mac.verify_slice(signature).map_err(|_| Fail::Signature)
+            }
+            CompiledVerifier::EdDsa(public) => {
+                let raw: [u8; 64] = signature.try_into().map_err(|_| Fail::Signature)?;
+                public
+                    .verify_strict(message, &Signature::from_bytes(&raw))
+                    .map_err(|_| Fail::Signature)
+            }
+        }
+    }
+}
+
+fn pick_compiled<'k>(keys: &'k [CompiledKey], kid: Option<&str>) -> Result<&'k CompiledKey, Fail> {
+    match kid {
+        Some(wanted) => keys
+            .iter()
+            .find(|k| k.kid.as_deref() == Some(wanted))
+            .ok_or(Fail::Key),
+        None if keys.len() == 1 => Ok(&keys[0]),
+        None => Err(Fail::Key),
+    }
+}
+
+fn decode_claims_compiled(
+    token: &str,
+    keys: &[CompiledKey],
+    rules: &Rules<'_>,
+) -> Result<Map<String, Value>, Fail> {
+    if token.len() > MAX_TOKEN || keys.is_empty() {
+        return Err(Fail::Malformed);
+    }
+    let mut parts = token.split('.');
+    let (Some(head_text), Some(body_text), Some(sig_text), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(Fail::Malformed);
+    };
+    let header = decode_segment_with(head_text, object)?;
+    if header.contains_key("crit") || header.contains_key("zip") {
+        return Err(Fail::Algorithm);
+    }
+    let kid = match header.get("kid") {
+        None => None,
+        Some(Value::String(text)) => Some(text.as_str()),
+        Some(_) => return Err(Fail::Malformed),
+    };
+    let key = pick_compiled(keys, kid)?;
+    match header.get("alg").and_then(Value::as_str) {
+        Some(name) if name == key.alg.name() => {}
+        _ => return Err(Fail::Algorithm),
+    }
+    let message = &token.as_bytes()[..head_text.len() + 1 + body_text.len()];
+    decode_segment_with(sig_text, |sig| key.verify(message, sig))?;
+    let claims = decode_segment_with(body_text, object)?;
+    check_claims(&claims, rules)?;
+    Ok(claims)
+}
+
 /// Parsed immutable verifier configuration. Requests can retain a cloned
 /// Python handle while another request replaces the provider's cached handle.
 struct Verifier {
     keys: Vec<Key>,
+    compiled: Vec<CompiledKey>,
 }
 
 impl Verifier {
     fn from_specs(keys: Vec<KeySpec>) -> PyResult<Self> {
         let mut built = Vec::with_capacity(keys.len());
+        let mut compiled = Vec::with_capacity(keys.len());
         for (kid, algorithm, bytes, public) in keys {
-            built.push(key_from(kid, &algorithm, bytes, public)?);
+            let key = key_from(kid, &algorithm, bytes, public)?;
+            compiled
+                .push(CompiledKey::from_key(&key).map_err(|f| PyValueError::new_err(f.reason()))?);
+            built.push(key);
         }
-        Ok(Self { keys: built })
+        Ok(Self {
+            keys: built,
+            compiled,
+        })
     }
 
     fn verify(&self, token: &str, rules: RuleSpec) -> Result<Vec<u8>, Fail> {
@@ -478,7 +615,7 @@ impl Verifier {
             audience: audience.as_deref(),
             require_exp,
         };
-        decode_claims(token, &self.keys, &rules)
+        decode_claims_compiled(token, &self.compiled, &rules)
     }
 }
 

@@ -203,13 +203,13 @@ async def test_unvouched_rows_leave_the_fused_path_after_one_request() -> None:
     port = await worker.start()
     flags: list[bool] = []
     assert worker.lane is not None
-    send = worker.lane._send
+    send_direct = worker.lane._send_direct
 
-    def spy(run: Run, response: Any) -> Exception | None:
-        flags.append(bool(response.strict))
-        return send(run, response)
+    def spy(request: Any, binding: Any, ctx: Any, rid: str, value: Any) -> None:
+        flags.append(bool(binding.fused_check and type(value) is list))
+        send_direct(request, binding, ctx, rid, value)
 
-    worker.lane._send = spy  # type: ignore[method-assign]
+    worker.lane._send_direct = spy  # type: ignore[method-assign]
     try:
         first = [await fetch(port, "GET", "/fused/dt") for _ in range(2)]
         plain = [await fetch(port, "GET", "/fused/ok") for _ in range(20)]

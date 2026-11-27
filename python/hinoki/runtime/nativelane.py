@@ -27,12 +27,21 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 from hinoki import context, core
+from hinoki.auth import Caller, _LazyHeaders
 from hinoki.db import NATIVE_OWNER, current, current_owner
 from hinoki.events import AuthRejected, RateLimited
-from hinoki.runtime.binding import BODY_METHODS, Binding
+from hinoki.http.response import Response as HandlerResponse
+from hinoki.orm.projection import _ProjectedItem, _ProjectedList, _ProjectedPage
+from hinoki.runtime.binding import BODY_METHODS, Binding, parse_query
 from hinoki.runtime.nativeproof import native_refusal
-from hinoki.runtime.pipeline import NativeBody, enforce_response
-from hinoki.runtime.responses import NO_PAYLOAD, HTTPError, Response
+from hinoki.runtime.pipeline import NativeBody, enforce_response, shape_result
+from hinoki.runtime.requests import authorize
+from hinoki.runtime.responses import (
+    BODYLESS,
+    NO_PAYLOAD,
+    HTTPError,
+    Response,
+)
 from hinoki.runtime.servercore import native_handler_eligible, route_guarded
 
 if TYPE_CHECKING:
@@ -163,6 +172,91 @@ class Run:
         self.handle: core._NativeRun | None = None
 
 
+def is_direct_route(binding: Binding) -> bool:
+    """Whether ``NativeLane`` can invoke ``binding.route.handler`` directly,
+    bypassing the multi-coroutine ``drive_native`` wrapper."""
+    route = binding.route
+    return (
+        not route.atomic
+        and binding.default_json
+        and route.owner is None
+        and not binding.resource_params
+        and not binding.takes_request
+    )
+
+
+def is_auth_direct_route(binding: Binding) -> bool:
+    """Whether an access-guarded route can run through the lightweight single-
+    coroutine auth fast-path instead of ``drive_native``."""
+    route = binding.route
+    return (
+        route.access is not None
+        and route.rate_limit is None
+        and binding.body_param is None
+        and binding.query_param is None
+        and is_direct_route(binding)
+    )
+
+
+async def _run_auth_direct(request: core.PreparedRequest, binding: Binding) -> Any:
+    """Authenticate via ``binding.route.access`` and invoke the handler in a
+    single coroutine frame without ``NativeBody`` or ``Response`` wrappers."""
+    route = binding.route
+    access = route.access
+    if access is None:  # pragma: no cover - gated by is_auth_direct_route
+        raise RuntimeError("auth direct route without access policy")
+    native_principal = request.native_principal
+    if native_principal is not None:
+        subject, scopes, claims = native_principal
+        principal: Any = Caller(subject, None, frozenset(scopes), claims=claims)
+    else:
+        raw_query = request.query
+        query = parse_query(raw_query) if raw_query else {}
+        principal = await authorize(
+            access,
+            _LazyHeaders(request),
+            query,
+            route=route.path,
+            method=route.method,
+        )
+    handler: Callable[..., Any] = route.handler
+    name = binding.principal_name
+    if request.has_native_args or binding.native_defaults:
+        supplied = request.native_args
+        args = (
+            binding.complete_native_args(supplied, (name, principal))
+            if name is not None
+            else binding.complete_native_args(supplied)
+        )
+        return await handler(**args)
+    if name is not None:
+        return await handler(**{name: principal})
+    return await handler()
+
+
+def _projected_fast_handle(binding: Binding, value: object) -> object | None:
+    """Return the pre-encoded Rust handle when ``value`` is a lazy projection
+    matching ``binding``'s declared response schema, bypassing check+narrow."""
+    kind = type(value)
+    if kind is _ProjectedList and isinstance(value, _ProjectedList):
+        if binding.response_scan is not None and binding.narrow_schema is value._schema:
+            return value._projected_handle
+    elif kind is _ProjectedItem and isinstance(value, _ProjectedItem):
+        schema = binding.response_schema or binding.narrow_schema
+        if schema is value._schema and (
+            binding.response_check is None or binding.response_check(value)
+        ):
+            return value._projected_handle
+    elif (
+        kind is _ProjectedPage
+        and isinstance(value, _ProjectedPage)
+        and binding.narrow_schema is value._schema
+        and (binding.response_check is None or binding.response_check(value))
+    ):
+        return value._projected_handle
+    return None
+
+
 class NativeLane:
     """Starts requests of the selected routes and answers them."""
 
@@ -181,6 +275,18 @@ class NativeLane:
             for action in actions
             if needs_request_data(pipeline.bindings[action])
         )
+        self.direct: dict[int, Binding] = {
+            action: pipeline.bindings[action]
+            for action in actions
+            if action not in self.with_data
+            and is_direct_route(pipeline.bindings[action])
+        }
+        self.auth_direct: dict[int, Binding] = {
+            action: pipeline.bindings[action]
+            for action in actions
+            if action in self.with_data
+            and is_auth_direct_route(pipeline.bindings[action])
+        }
         self.source = source
         self.tasks = tasks
         self.fail = fail
@@ -203,6 +309,16 @@ class NativeLane:
             return False
         if request.id_ignored:
             log.warning("ignored invalid request ID from trusted proxy")
+        direct = self.direct.get(action)
+        if direct is not None:
+            self._start_direct(request, direct)
+            return True
+        auth_direct = self.auth_direct.get(action)
+        if auth_direct is not None:
+            self._start_direct_coro(
+                request, auth_direct, _run_auth_direct(request, auth_direct)
+            )
+            return True
         binding = self.pipeline.bindings[action]
         rid = request.request_id
         run = Run(request, binding, self.pipeline.native_context(rid), rid)
@@ -223,6 +339,172 @@ class NativeLane:
             self.runs.discard(run)
             raise
         return True
+
+    def _start_direct(self, request: core.PreparedRequest, binding: Binding) -> None:
+        """Invoke a plain unguarded JSON handler directly and poll its first step
+        eagerly in Rust without allocating ``Run`` or wrapper coroutines."""
+        handler: Callable[..., Any] = binding.route.handler
+        try:
+            if request.has_native_args or binding.native_defaults:
+                coro = handler(**binding.complete_native_args(request.native_args))
+            else:
+                coro = handler()
+        except Exception as error:
+            rid = request.request_id
+            self._translate_now(
+                Run(request, binding, self.pipeline.native_context(rid), rid), error
+            )
+            return
+        self._start_direct_coro(request, binding, coro)
+
+    def _start_direct_coro(
+        self,
+        request: core.PreparedRequest,
+        binding: Binding,
+        coro: Any,
+    ) -> None:
+        """Poll ``coro`` eagerly in Rust; only allocate ``Run`` if it suspends."""
+        rid = request.request_id
+        ctx = self.pipeline.native_context(rid)
+        try:
+            kind, payload = core.step_native_first(coro, ctx)
+        except Exception as error:
+            self._translate_now(Run(request, binding, ctx, rid), error)
+            return
+        if kind == 0:
+            self._send_direct(request, binding, ctx, rid, payload)
+            return
+        run = Run(request, binding, ctx, rid)
+        if kind == 1:
+            self.runs.add(run)
+            try:
+                run.handle = core.continue_native(
+                    coro,
+                    payload,
+                    lambda value, error, reason: self._done_direct(
+                        run, value, error, reason
+                    ),
+                    lambda *handover: self._foreign_direct(run, *handover),
+                    ctx,
+                    self.deadline,
+                    self.steps,
+                )
+            except BaseException:
+                self.runs.discard(run)
+                raise
+            return
+        remaining = None if self.deadline is None else self.deadline / 1000.0
+        self._foreign_direct(run, coro, ctx, payload, remaining, None)
+
+    def _send_direct(
+        self,
+        request: core.PreparedRequest,
+        binding: Binding,
+        ctx: contextvars.Context,
+        rid: str,
+        value: Any,
+    ) -> None:
+        status = binding.route.status
+        if status not in BODYLESS:
+            handle = _projected_fast_handle(binding, value)
+            if handle is not None:
+                request.respond_final_json(status, None, handle)
+                return
+            if binding.fused_check and type(value) is list:
+                try:
+                    request.respond_final_json(status, None, value, True)
+                    return
+                except Exception:  # noqa: S110 - fall back to checked path below
+                    pass
+                self._send_direct_checked(request, binding, ctx, rid, value, True)
+                return
+        self._send_direct_checked(request, binding, ctx, rid, value, False)
+
+    def _send_direct_checked(
+        self,
+        request: core.PreparedRequest,
+        binding: Binding,
+        ctx: contextvars.Context,
+        rid: str,
+        value: Any,
+        disable_fused: bool,
+    ) -> None:
+        if disable_fused:
+            object.__setattr__(binding, "fused_check", False)
+        try:
+            if isinstance(value, HandlerResponse):
+                request.respond_final(value.status, value.headers, value.body)
+                return
+            exact = enforce_response(binding, value)
+            status = binding.route.status
+            if value is not None and status not in BODYLESS:
+                shaped = shape_result(binding, value, exact)
+                request.respond_final_json(status, None, shaped)
+                return
+            out_status = HTTPStatus.NO_CONTENT if status == HTTPStatus.OK else status
+            request.respond_final(out_status, [], b"")
+        except Exception as error:
+            self._translate_now(Run(request, binding, ctx, rid), error)
+
+    def _done_direct(
+        self, run: Run, value: Any, error: BaseException | None, reason: str | None
+    ) -> None:
+        if threading.get_ident() != self.thread:
+            self.loop.call_soon_threadsafe(
+                self._finish_direct, run, value, error, reason
+            )
+        else:
+            self._finish_direct(run, value, error, reason)
+
+    def _finish_direct(
+        self, run: Run, value: Any, error: BaseException | None, reason: str | None
+    ) -> None:
+        self.runs.discard(run)
+        if error is None:
+            self._send_direct(run.request, run.binding, run.ctx, run.rid, value)
+        elif isinstance(error, asyncio.CancelledError):
+            if reason == "deadline":
+                self._respond(run, run.ctx.run(timeout_response))
+        elif isinstance(error, Exception):
+            self._translate_now(run, error)
+        else:
+            log.error("native handler of %s ended with %r", run.rid, error)
+            self.fail(run.request)
+
+    def _foreign_direct(self, run: Run, *handover: Any) -> None:
+        if threading.get_ident() != self.thread:
+            self.loop.call_soon_threadsafe(self._foreign_direct, run, *handover)
+            return
+        coro, ctx, yielded, remaining, reason = handover
+        self.runs.discard(run)
+        work = self.pipeline.native_continue(
+            run.rid,
+            self._wrap_direct_foreign(run.binding, resume(coro, yielded)),
+            remaining,
+            reason,
+        )
+        task = self._track(self._answer(run, work), ctx)
+        if reason == "cancelled":
+            self.unwinding.add(task)
+            task.add_done_callback(self.unwinding.discard)
+
+    async def _wrap_direct_foreign(
+        self, binding: Binding, resumed: Awaitable[Any]
+    ) -> Response:
+        result = await resumed
+        if isinstance(result, HandlerResponse):
+            return await self.pipeline._plain_response(binding, result)
+        fused = binding.fused_check and type(result) is list
+        exact = False if fused else enforce_response(binding, result)
+        route = binding.route
+        if result is not None and route.status not in BODYLESS:
+            shaped = shape_result(binding, result, exact)
+            return self.pipeline._native_rendered(
+                binding, shaped, None, defer=True, strict=fused
+            )
+        if route.status == HTTPStatus.OK:
+            return Response(HTTPStatus.NO_CONTENT)
+        return Response(route.status)
 
     def _request_data(
         self, request: core.PreparedRequest, action: int, binding: Binding
