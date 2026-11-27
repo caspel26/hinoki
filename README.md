@@ -36,7 +36,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-reduced-motion: reduce)" srcset="assets/readme/demo.png">
-    <img src="assets/readme/demo.apng" alt="In a terminal window, hinoki new shows the Hinoki banner and asks for a project name, a database, a server and the rest; its last question, Create an app now?, is answered yes and the app is named posts. hinoki check reports no violated rules, hinoki dev starts the Kiso server and prints its address and its docs URL, a curl request to POST /posts returns 201 Created with the new post, and a request to the docs URL, http://localhost:8000/docs, returns 200." width="840">
+    <img src="assets/readme/demo.apng" alt="In a terminal window, hinoki new creates the blog project and the posts app; hinoki check flags a write route missing atomic=True with its file, line and fix (HNK-TXN-001), applies the fix and passes with 0 violated rules; hinoki dev starts Kiso with its docs URL, curl POST /posts returns 201 Created, and curl to /docs returns 200." width="840">
   </picture>
 </p>
 <p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened, and the posts app's source files and migrations are written off screen.</sub></p>
@@ -47,6 +47,7 @@
 Hinoki is a high-throughput Python API framework powered by a Rust HTTP server and SQL ORM. Apps run on **Kiso**, Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls. `hinoki dev` and `hinoki serve` run Kiso by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. One typed declaration drives routing, strict schema validation and serialization, OpenAPI, architecture rules, and MCP. You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix. Projects are agent-ready out of the box, with built-in application and development MCP servers and a generated `AGENTS.md`.
 
 <p align="center">
+  <a href="#enforce-architecture-with-hinoki-check">hinoki check</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#write-an-api">Write an API</a> ·
@@ -56,6 +57,47 @@ Hinoki is a high-throughput Python API framework powered by a Rust HTTP server a
   <a href="#python-and-rust">Python and Rust</a> ·
   <a href="#status">Status</a>
 </p>
+
+## Enforce architecture with `hinoki check`
+
+A project declares its architecture contracts in plain Python (`rules.py`), and `hinoki check` verifies every endpoint against them before the server starts ([rules guide](docs/rules.md)):
+
+```python
+# notes/rules.py
+from hinoki import Actions, Transactions
+from hinoki.rules import RuleSet
+
+project_rules = RuleSet(
+    Actions.require_access(match="notes.*", except_=["notes.api.health"]),
+    Actions.require_permissions(match="notes.*", except_=["notes.api.health"]),
+    Transactions.require_atomic(),
+)
+```
+
+These **project rules** set the invariants for the whole codebase; on individual endpoints, the author satisfies them with explicit options such as `access=staff` and `atomic=True` on `@http.*`, `RouteGroup`, or `crud(...)`. If a write route omits `atomic=True`:
+
+```python
+# notes/apps/billing/api.py
+@http.post("/invoices", access=staff, status=201)
+async def create_invoice(data: InvoiceIn) -> InvoiceOut:
+    return InvoiceOut(customer=data.customer)
+```
+
+`hinoki check` fails with the rule ID, file, line, and fix:
+
+```console
+$ hinoki check
+notes/apps/billing/api.py:26: HNK-TXN-001 [violated] POST /billing/invoices (create_invoice) does not declare atomic=True
+  fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
+8 rule(s): 1 violated, 0 unverifiable, 0 waived
+```
+
+Adding `atomic=True` to `@http.post("/invoices", access=staff, atomic=True, status=201)` clears the finding:
+
+```console
+$ hinoki check
+8 rule(s): 0 violated, 0 unverifiable, 0 waived
+```
 
 ## How it works
 
@@ -99,21 +141,20 @@ The [Quick start](docs/quick-start.md) walks through the prompts.
 `hinoki new` writes the application as a module-level `app` in `notes/main.py`, titled after the project:
 
 ```python
+# notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,  # NOTES_* variables and .env
-    include=manifest_routes(),  # notes/routes.py, then each app's routes at its prefix
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-)  # the rules come from `rules` in hinoki.toml
+)  # routes, rules and middleware come from hinoki.toml
 ```
 
-`hinoki.toml` names that application, its routes and its rules, so commands inside the project take no target:
+`hinoki.toml` names that application, its project route map and its rules, so commands inside the project take no target:
 
 ```toml
 [project]
@@ -122,7 +163,7 @@ routes = "notes.routes:routes"
 rules = ["notes.rules:project_rules"]
 ```
 
-A `Hinoki(...)` built in the module `project.application` names reads whatever its arguments leave out from this file: routes, each app's `events`, and the project-wide `middleware` and `rules` lists (`module:attribute` entries you add by hand). So `include=manifest_routes()` above is the explicit form of the default, and the [Tracker example](examples/tracker/hinoki.toml) wires everything from `hinoki.toml` with none of them ([middleware](docs/middleware.md), [rules](docs/rules.md)).
+`Hinoki(settings=ProjectSettings, ...)` reads `hinoki.toml` and loads `[project].routes` (`notes.routes:routes`) automatically, along with `rules` and any `middleware`. Loading the project route map is separate from mounting individual apps: `notes/routes.py` starts with `health` (`/health`) and decides which apps are exposed over HTTP via `Mount(...)` ([middleware](docs/middleware.md), [rules](docs/rules.md)).
 
 ```sh
 hinoki dev      # serve on Kiso, reload on changes
@@ -132,13 +173,33 @@ hinoki routes   # list every route with its access policy
 
 ## Write an API
 
-The project package holds no models. Answer yes to the last question of `hinoki new` (or pass `--app NAME`), or create an app later; it registers its models, migrations and routes in `hinoki.toml`:
+The project package holds no models. Answer yes to the last question of `hinoki new` (or pass `--app NAME`), or create an app later; `hinoki app create` registers the app's models, migrations and dependencies in `hinoki.toml` and generates an initially empty route list (`routes: list[Includable] = []` in `notes/apps/billing/routes.py`):
 
 ```sh
-hinoki app create notes
+hinoki app create billing
 ```
 
-A model, the `Schema` classes that cross the API boundary, and the client filters of a list:
+Mount that app's route list in `notes/routes.py`, preserving `/health` and adding `Mount("/billing", billing_routes)`:
+
+```python
+# notes/routes.py
+from hinoki import Includable, Mount
+
+from notes.api import health
+from notes.apps.billing.routes import routes as billing_routes
+
+routes: list[Includable] = [health, Mount("/billing", billing_routes)]
+```
+
+Once you add endpoints to `notes/apps/billing/routes.py`, the project exposes them under `/billing` through that `Mount`. Verify the active route table with `hinoki routes`:
+
+```console
+$ hinoki routes
+POST    /billing/invoices  Tokens[billing:write]    notes.apps.billing.api.create_invoice
+GET     /health            public                   notes.api.health
+```
+
+Inside an app, you declare models, `Schema` classes at the API boundary and list filters:
 
 ```python
 # notes/apps/notes/models.py
@@ -292,12 +353,12 @@ The list accepts `?title=...`, `?search=...` and `?ordering=title` from the `Fil
 
 ## Examples
 
-Three self-contained projects in [`examples/`](examples/README.md), each with its own `hinoki.toml`, tests and a README with a reading order:
+Four self-contained projects in [`examples/`](examples/README.md), each with its own `hinoki.toml`, tests and a README with a reading order:
 
 * [**Notes**](examples/notes/README.md) (easy): one app, one model and generated CRUD, in five minutes.
 * [**Tracker**](examples/tracker/README.md) (medium): several apps with explicit dependencies, access policies, transactions, a filtered list, events, and project-wide middleware and rules.
 * [**Blog**](examples/blog/README.md) (complete): tenant, login, admin, MCP, migrations, streaming, events, a rule waiver and metrics.
-* [**Mailroom**](examples/mailroom/README.md) (focused): outbound email from templates, an API-key policy and the email-template rule.
+* [**Mailroom**](examples/mailroom/README.md) (focused): outbound email from TOML templates with typed contexts, an API-key policy, CLI preview and the `EmailTemplatesMatch` rule, with no database.
 
 ## Interactive API docs
 
@@ -328,11 +389,13 @@ The optional admin is mounted explicitly, and installing or importing it never t
 
 ## Python and Rust
 
-Kiso is part of the native extension and has no ASGI boundary: eligible routes skip Python routing and binding. Granian runs every request through the ASGI pipeline. Path matching, selected request parsing, schema validation and serialization, and ORM SQL compilation and execution run in the extension. Handlers and most of the request pipeline run in Python; on Kiso, an `async def` handler that only awaits ORM calls is driven from Rust. [Serving](docs/serving.md) and [Kiso](docs/kiso.md) document the boundary.
+Kiso is part of the native extension and has no ASGI boundary: eligible routes skip Python routing and binding, while Granian runs every request through the ASGI pipeline. Path matching, selected request parsing, schema validation and serialization, and ORM SQL compilation and execution run in Rust. On Kiso, an `async def` handler whose only awaits are ORM reads and stock writes (including guarded, body and `atomic` routes) is driven from Rust without an asyncio task, and eligible generated CRUD writes run their transaction in Rust; custom Python logic and middleware run in Python. [Serving](docs/serving.md) and [Kiso](docs/kiso.md) document the boundary.
 
 ## Status
 
-Pre-alpha, tested in CI on Linux with Python 3.12–3.14. The [status page](https://hinoki.caspel.dev/dev/status/) lists what is not available yet. The [benchmark report](docs/benchmarks.md) describes retained runs and their limits; it is not a general ranking.
+Pre-alpha, tested in CI on Linux with Python 3.12–3.14. The [status page](https://hinoki.caspel.dev/dev/status/) lists what is not available yet.
+
+The [benchmark report](docs/benchmarks.md) publishes retained measurements as evidence for the workloads tested — 5 stack setups across 6 request types (`health`, `json-1k`, `json-10k`, `list`, `detail`, `create`) backed by PostgreSQL 17.12 on one Linux host (`Intel Core i5-10300H`, 8 logical CPUs, 15 GiB RAM), at 100 concurrent connections with a 10 s warm-up and 2 server starts × 5 samples of 100,000 requests per scenario (10 samples per cell, or 20 when repeated for an unstable cell, with Kiso's `create` result marked unstable at 24.5% CV). Every stack passed a response-oracle check and SQL statement-count verification before measurement; the results cover warm loopback data on that machine and are not a general ranking or production claim.
 
 <p align="center">
   <a href="https://hinoki.caspel.dev/dev/guides/">Guides</a> ·
