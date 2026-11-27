@@ -509,7 +509,7 @@
 
   /* ---------- Scrollable tables ---------- */
   $$(".prose table").forEach((table) => {
-    if (table.closest(".table-wrap, .benchmark-table-wrap, [data-no-wrap]")) return;
+    if (table.closest(".table-wrap, .bench-scroll, .benchmark-table-wrap, [data-no-wrap]")) return;
     const wrap = document.createElement("div");
     wrap.className = "table-wrap";
     wrap.tabIndex = 0;
