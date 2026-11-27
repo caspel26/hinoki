@@ -3,7 +3,7 @@
 Follow the Tracker, an API where members keep their own tasks, one layer per
 chapter. Each chapter walks through files of the checked-in example in
 [`examples/tracker`](https://github.com/caspel26/hinoki/tree/main/examples/tracker)
-and runs its commands, so every step runs as shown. Chapter 8 then adds an app
+and runs its commands, so every step runs as shown. Chapter 9 then adds an app
 to your own project.
 
 | Chapter | It covers | You learn |

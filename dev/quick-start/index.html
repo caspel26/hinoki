@@ -229,7 +229,7 @@
           <h1 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 10:06:17 UTC">November 27, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -314,13 +314,19 @@ prints the next commands. The files that matter:</p>
 │   ├── routes.py      routes = [health]
 │   ├── settings.py    typed settings, NOTES_* variables
 │   ├── rules.py       architecture rules
-│   └── apps/entries/  models, endpoints, routes and migrations of the app
+│   └── apps/
+│       └── entries/   starter app registered in hinoki.toml
+│           ├── api.py
+│           ├── routes.py
+│           ├── models.py
+│           └── migrations/
 ├── tests/             pytest suite
 └── AGENTS.md          agent instructions
 </code></pre></div>
-<p>The project package holds no models. They live in apps; answering no to the
-last question leaves the project without one, and
-<a href="#add-another-app">Add another app</a> shows how to add it later.</p>
+<p>The generated project serves <code>/health</code>. The <code>entries</code> app starts with an empty
+route list and space for its models and migrations. Choosing no at <strong>Create an
+app now?</strong> creates just the project. <a href="#add-another-app">Add another app</a> shows
+how to add one later.</p>
 <div class="admonition tip">
 <p class="admonition-title">Scripts and CI</p>
 <p><code>uv run hinoki new notes --dir .. --no-input --database sqlite --git --install --app entries</code>
@@ -355,14 +361,13 @@ name the hosts you serve, and silence it, add
 loaded automatically from <code>notes/routes.py</code> (<code>[project] routes</code> in <code>hinoki.toml</code>):</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>routes
 </code></pre></div>
-<div class="language-text highlight"><pre><span></span><code>METHOD  PATH     HANDLER           ACCESS  ATOMIC  ERRORS
-GET     /health  notes.api.health  public  -       -
+<div class="language-text highlight"><pre><span></span><code>GET     /health  public                   notes.api.health
 </code></pre></div>
 <h2 id="what-the-manifest-does">What the manifest does<a class="headerlink" href="#what-the-manifest-does" title="Permanent link">&para;</a></h2>
 <p><code>hinoki.toml</code> registers the application, the project's route map (<code>[project] routes</code>),
 the rules it runs and each app's persistence and dependencies. <code>notes/main.py</code>
 loads <code>[project] routes</code> automatically, while <code>notes/routes.py</code> decides which
-apps are mounted over HTTP (<code>Mount("/entries", ...)</code>):</p>
+apps are mounted over HTTP:</p>
 <div class="language-toml highlight"><pre><span></span><code><span class="k">[project]</span>
 <span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
 <span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span>
@@ -410,10 +415,10 @@ the app, as <a href="#your-first-app">the next section</a> and the
 <p>Models live in apps, not in the project package. <code>hinoki new</code> created <code>entries</code>
 when you answered the last question:</p>
 <div class="language-text highlight"><pre><span></span><code>notes/apps/entries/
-├── api.py         endpoints of the app
-├── routes.py      reusable routes of the app
-├── models.py      tables of the app
-└── migrations/    migration history
+├── api.py         starter for the app’s endpoints
+├── routes.py      empty app route list
+├── models.py      starter for the app’s models
+└── migrations/    migration package
 </code></pre></div>
 <p>It is registered in <code>hinoki.toml</code>:</p>
 <div class="language-toml highlight"><pre><span></span><code><span class="k">[[apps]]</span>
@@ -422,12 +427,21 @@ when you answered the last question:</p>
 <span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.entries.migrations"</span>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
 </code></pre></div>
-<p>To expose the app's endpoints over HTTP, mount them in <code>notes/routes.py</code> with
-<code>Mount("/entries", entries_routes)</code>.</p>
+<p>After adding an endpoint or a group to the app's own route list, mount that list
+in the project's route map:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/routes.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">Mount</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">health</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.apps.entries.routes</span><span class="w"> </span><span class="kn">import</span> <span class="n">routes</span> <span class="k">as</span> <span class="n">entries_routes</span>
+
+<span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">health</span><span class="p">,</span> <span class="n">Mount</span><span class="p">(</span><span class="s2">"/entries"</span><span class="p">,</span> <span class="n">entries_routes</span><span class="p">)]</span>
+</code></pre></div>
+<p>Endpoints inside the app declare paths relative to the <code>/entries</code> prefix.</p>
 <p>App names are lower-case letters and digits with single underscores between words
 (for example <code>api_v1</code>), starting with a letter. Define the
 app's models in <code>notes/apps/entries/models.py</code>, then
-<code>uv run hinoki migrations plan entries</code>; <a href="../tutorial/8-projects/">8. Projects and apps</a>
+<code>uv run hinoki migrations plan entries</code>; <a href="../tutorial/8-projects/">9. Projects and apps</a>
 walks through it.</p>
 <h3 id="add-another-app">Add another app<a class="headerlink" href="#add-another-app" title="Permanent link">&para;</a></h3>
 <p>If you answered no, or want a second app, create it from the project:</p>
@@ -436,10 +450,10 @@ walks through it.</p>
 <h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../tutorial/">Tutorial</a>: build an API layer by layer.</li>
-<li><a href="../tutorial/8-projects/">8. Projects and apps</a>: add an app with its own
+<li><a href="../tutorial/8-projects/">9. Projects and apps</a>: add an app with its own
   models and migrations to this project.</li>
 <li><a href="https://github.com/caspel26/hinoki/tree/main/examples/notes">Notes example</a>:
-  a small CRUD API whose model lives in <code>notes/apps/notes</code>.</li>
+  a separate, complete project with a model, schemas and generated CRUD routes.</li>
 </ul>
         
         <aside class="related" aria-label="Related pages">
@@ -471,7 +485,7 @@ walks through it.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 10:06:17 UTC">November 27, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

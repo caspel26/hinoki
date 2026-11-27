@@ -261,7 +261,7 @@
           <h1 id="9-projects-and-apps">9. Projects and apps<a class="headerlink" href="#9-projects-and-apps" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 10:03:59 UTC">November 27, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -298,7 +298,7 @@
 <p>The command writes the package and registers it:</p>
 <div class="language-text highlight"><pre><span></span><code>notes/apps/billing/
 ├── api.py         endpoints of the app
-├── routes.py      the list of routes served, mounted at the prefix
+├── routes.py      the app’s route list, initially empty
 ├── models.py      tables of the app
 └── migrations/    migration history
 </code></pre></div>
@@ -306,8 +306,6 @@
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"billing"</span>
 <span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.models"</span>
 <span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.migrations"</span>
-<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.routes:routes"</span>
-<span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/billing"</span>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
 </code></pre></div>
 <p>Hinoki reads apps only from <code>hinoki.toml</code>; it never scans installed packages.
@@ -410,7 +408,7 @@ example in tests or conditional mounts). The same manifest can also list
 project-wide <code>middleware</code>, an <code>events</code> module per app and more than one rule
 set (<code>rules</code>), as the Tracker's <code>hinoki.toml</code> does.</p>
 <p>The project's rules (listed in <code>hinoki.toml</code>) require every action to name an
-<code>Access</code> policy with permissions; build one as in <a href="../4-endpoints/">chapter 4</a>.</p>
+<code>Access</code> policy with permissions; build one as in <a href="../4-endpoints/">chapter 3</a>.</p>
 <h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>hinoki app create</code> writes an app and registers it in <code>hinoki.toml</code>.</li>
@@ -445,7 +443,7 @@ set (<code>rules</code>), as the Tracker's <code>hinoki.toml</code> does.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 10:03:59 UTC">November 27, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
