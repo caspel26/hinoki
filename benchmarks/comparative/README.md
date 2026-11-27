@@ -124,8 +124,8 @@ Exact package versions, the source commit and dirty status, the CPU model, the l
 
 The retained comparative data serves these outputs and experiments:
 
-* `results/2026-11-24/` supplies the compact Hinoki-only report card in `theme/home.html`.
-* The 2026-11-25 full comparative report in `docs/benchmarks.md` was generated from the [archived raw results](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/bench-2026-11-25.tar.gz) (SHA-256: `0db26f6e288a42f9532f9aad3e927e28690386ce0f262ee3ed1b456a4f32d7d5`; [checksum file](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/bench-2026-11-25.tar.gz.sha256)).
+* The 2026-11-27 full comparative report in `docs/benchmarks.md` and the compact Hinoki-only report card in `theme/home.html` (8 workers) were generated from the [archived raw results](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-27/bench-2026-11-27.tar.gz) (SHA-256: `a70e7a9be78f32de2af74bc117928c184f70f5d55878a4d7bfc4296df618048d`; [checksum file](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-27/bench-2026-11-27.tar.gz.sha256)).
+* The earlier 2026-11-25 full comparative run is retained in its [archived raw results](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/bench-2026-11-25.tar.gz) (SHA-256: `0db26f6e288a42f9532f9aad3e927e28690386ce0f262ee3ed1b456a4f32d7d5`; [checksum file](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/bench-2026-11-25.tar.gz.sha256)).
 * `results/2026-11-23/` is the earlier posts-service run described above and is kept as historical data.
 
 The separate generated-CRUD orientation run from 2026-11-18 is also archived ([raw results](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/bench-2026-11-18-crud-phase1.tar.gz), SHA-256: `c32ea9a982b5bc5d30cce8d79f10bc93890603cebb123d4f927f41436049a3b2`; [checksum file](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/bench-2026-11-18-crud-phase1.tar.gz.sha256)). Its reproduction instructions are in `benchmarks/README.md` and `docs/rust-crud-orientation.md`.
