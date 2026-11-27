@@ -64,13 +64,12 @@ A project declares its architecture contracts in plain Python (`rules.py`), and 
 
 ```python
 # notes/rules.py
-from hinoki import Actions, Transactions
-from hinoki.rules import RuleSet
+from hinoki import rules
 
-project_rules = RuleSet(
-    Actions.require_access(match="notes.*", except_=["notes.api.health"]),
-    Actions.require_permissions(match="notes.*", except_=["notes.api.health"]),
-    Transactions.require_atomic(),
+project_rules = rules.RuleSet(
+    rules.Actions.require_access(match="notes.*", except_=["notes.api.health"]),
+    rules.Actions.require_permissions(match="notes.*", except_=["notes.api.health"]),
+    rules.Transactions.require_atomic(),
 )
 ```
 

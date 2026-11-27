@@ -18,26 +18,25 @@ They are optional, and a project created with `hinoki new` starts with them on:
 # notes/rules.py
 """The project's rules. Weaken them only with the owner's decision (see hinoki-rules.toml)."""
 
-from hinoki import Actions, Schemas, Transactions  # add Models with your first model
-from hinoki.rules import RuleSet
+from hinoki import rules
 
-project_rules = RuleSet(
+project_rules = rules.RuleSet(
     # Anything not public on purpose names an access policy, and the policy names permissions.
-    Actions.require_access(match="notes.*", except_=["notes.api.health"]),
-    Actions.require_permissions(match="notes.*", except_=["notes.api.health"]),
+    rules.Actions.require_access(match="notes.*", except_=["notes.api.health"]),
+    rules.Actions.require_permissions(match="notes.*", except_=["notes.api.health"]),
     # Responses are concrete Schema types and lists are paginated.
-    Actions.forbid_model_responses(match="notes.*"),
-    Actions.require_return_type(match="notes.*"),
-    Actions.require_pagination(match="notes.*"),
+    rules.Actions.forbid_model_responses(match="notes.*"),
+    rules.Actions.require_return_type(match="notes.*"),
+    rules.Actions.require_pagination(match="notes.*"),
     # Writes run in a transaction that rolls back before errors become HTTP.
-    Transactions.require_atomic(),
+    rules.Transactions.require_atomic(),
     # Secrets never reach a client, and request text is bounded.
-    Schemas.forbid_exposure("password_hash", "password", "token"),
-    Schemas.require_string_limits(),
+    rules.Schemas.forbid_exposure("password_hash", "password", "token"),
+    rules.Schemas.require_string_limits(),
     # Turn these on with your first model (a model rule that matches no model
     # fails the check): tables are pinned and foreign keys are indexed.
-    # Models.require_explicit_table(match="notes.*"),
-    # Models.require_foreign_key_index(match="notes.*"),
+    # rules.Models.require_explicit_table(match="notes.*"),
+    # rules.Models.require_foreign_key_index(match="notes.*"),
 )
 ```
 
@@ -60,18 +59,18 @@ hinoki check
 
 | ID | Rule | Phase | Checks |
 | --- | --- | --- | --- |
-| `HNK-ACC-001` | `Actions.require_access(match="*", except_=())` | startup | every matching action names an `Access` policy (public by default is the common hole) |
-| `HNK-ACC-002` | `Actions.require_permissions(match="*", except_=())` | startup | an action with an `Access` policy names at least one permission, so "any authenticated caller" is never implicit |
-| `HNK-API-001` | `Actions.forbid_model_responses(match="*", except_=())` | startup | no action returns a `Model` (or a list or page of them): responses are `Schema` classes |
-| `HNK-API-002` | `Actions.require_return_type(match="*", except_=())` | startup | every action annotates a concrete return type (not missing, `Any` or `object`; `None` is fine for a `204`) |
-| `HNK-API-003` | `Actions.require_pagination(match="*", except_=())` | startup | a `GET` action never returns a plain `list[...]` (alone or in a union): it returns a `Page` |
-| `HNK-TXN-001` | `Transactions.require_atomic(methods=("POST", "PUT", "PATCH", "DELETE"), match="*", except_=())` | startup | state-changing actions declare `atomic=True`, on the action or its `RouteGroup` |
-| `HNK-SCH-001` | `Schemas.forbid_exposure(*fields)` | startup | the named fields never appear in a response `Schema`: nested, in a subclass, in a union variant, as a field, an alias or a computed field; an action returning a `dict` is reported as unverifiable |
-| `HNK-SCH-002` | `Schemas.require_string_limits()` | startup | every text field a client sends (nested, in containers, `dict` values and union variants included) has `max_length` or `one_of`; `Enum` and `Literal` fields pass |
-| `HNK-DB-001` | `Models.require_explicit_table(match="*")` | startup | matching models pin their table with `@db.table(...)` or `table=`, so renaming the class cannot rename the table |
-| `HNK-DB-002` | `Models.require_foreign_key_index(match="*")` | startup | every foreign-key column leads an index, a primary key or a unique constraint |
+| `HNK-ACC-001` | `rules.Actions.require_access(match="*", except_=())` | startup | every matching action names an `Access` policy (public by default is the common hole) |
+| `HNK-ACC-002` | `rules.Actions.require_permissions(match="*", except_=())` | startup | an action with an `Access` policy names at least one permission, so "any authenticated caller" is never implicit |
+| `HNK-API-001` | `rules.Actions.forbid_model_responses(match="*", except_=())` | startup | no action returns a `Model` (or a list or page of them): responses are `Schema` classes |
+| `HNK-API-002` | `rules.Actions.require_return_type(match="*", except_=())` | startup | every action annotates a concrete return type (not missing, `Any` or `object`; `None` is fine for a `204`) |
+| `HNK-API-003` | `rules.Actions.require_pagination(match="*", except_=())` | startup | a `GET` action never returns a plain `list[...]` (alone or in a union): it returns a `Page` |
+| `HNK-TXN-001` | `rules.Transactions.require_atomic(methods=("POST", "PUT", "PATCH", "DELETE"), match="*", except_=())` | startup | state-changing actions declare `atomic=True`, on the action or its `RouteGroup` |
+| `HNK-SCH-001` | `rules.Schemas.forbid_exposure(*fields)` | startup | the named fields never appear in a response `Schema`: nested, in a subclass, in a union variant, as a field, an alias or a computed field; an action returning a `dict` is reported as unverifiable |
+| `HNK-SCH-002` | `rules.Schemas.require_string_limits()` | startup | every text field a client sends (nested, in containers, `dict` values and union variants included) has `max_length` or `one_of`; `Enum` and `Literal` fields pass |
+| `HNK-DB-001` | `rules.Models.require_explicit_table(match="*")` | startup | matching models pin their table with `@db.table(...)` or `table=`, so renaming the class cannot rename the table |
+| `HNK-DB-002` | `rules.Models.require_foreign_key_index(match="*")` | startup | every foreign-key column leads an index, a primary key or a unique constraint |
 | `HNK-MAIL-001` | `EmailTemplatesMatch()` | static | every registered [email template](email-templates.md) loads and matches its context `Schema` (opt-in, see [below](#an-opt-in-rule-email-templates)) |
-| `HNK-IMP-001` | `Imports.forbid(source, target)` | static | modules under `source` never import `target`, read from the source files; dynamic imports are reported, not ignored |
+| `HNK-IMP-001` | `rules.Imports.forbid(source, target)` | static | modules under `source` never import `target`, read from the source files; dynamic imports are reported, not ignored |
 
 Every built-in rule has severity `error`. `HNK-API-002` matters most for actions
 with `validate_response=False`: any other action with an unusable return
@@ -103,6 +102,8 @@ you say "public on purpose". The Blog example names its exceptions once:
 
 ```python
 # examples/blog/blog/rules.py
+from hinoki import rules
+
 PUBLIC = [
     "blog.apps.blog.api.health",
     "blog.apps.blog.api.Posts.listing",
@@ -111,12 +112,12 @@ PUBLIC = [
 ]
 SIGNED_IN = ["blog.apps.blog.accounts.*.me"]  # any signed-in user, no permission
 
-blog_rules = RuleSet(
-    Actions.require_access(match="blog.*", except_=PUBLIC),
-    Actions.require_permissions(match="blog.*", except_=[*PUBLIC, *SIGNED_IN]),
-    Transactions.require_atomic(except_=["hinoki.ai.mcpapp.*"]),
-    Schemas.forbid_exposure("token_hash", "password_hash"),
-    Imports.forbid(source="blog.apps.blog.models", target="blog.apps.blog.api"),
+blog_rules = rules.RuleSet(
+    rules.Actions.require_access(match="blog.*", except_=PUBLIC),
+    rules.Actions.require_permissions(match="blog.*", except_=[*PUBLIC, *SIGNED_IN]),
+    rules.Transactions.require_atomic(except_=["hinoki.ai.mcpapp.*"]),
+    rules.Schemas.forbid_exposure("token_hash", "password_hash"),
+    rules.Imports.forbid(source="blog.apps.blog.models", target="blog.apps.blog.api"),
     # ... and the other six rules, see the file
 )
 ```
@@ -148,7 +149,7 @@ The application's rules are, in this order of precedence:
 merged in the order listed into one `RuleSet`, so the report keeps that order.
 The same rule (same id and summary) listed by two entries is a `ProjectError`
 naming both entries, never a silent override; rules that share an id but differ
-in their arguments, such as two `Imports.forbid(...)`, are different rules. An entry that does not import, is not a `RuleSet`, or
+in their arguments, such as two `rules.Imports.forbid(...)`, are different rules. An entry that does not import, is not a `RuleSet`, or
 a list of anything else is rejected the same way. You edit the list by hand;
 no command writes it. `manifest_rules()` (from `hinoki.project`) is the explicit
 form, for `Hinoki(rules=manifest_rules())` or a test.
@@ -282,8 +283,7 @@ passes `rules=` by hand, the explicit form, to keep the example in one file:
 
 ```python
 # shop/main.py
-from hinoki import Actions, Hinoki, Schema, http
-from hinoki.rules import RuleSet
+from hinoki import Hinoki, Schema, http, rules
 
 
 class Health(Schema):
@@ -295,7 +295,7 @@ def health() -> Health:
     return Health(status="ok")
 
 
-app = Hinoki(rules=RuleSet(Actions.require_access()), include=[health])
+app = Hinoki(rules=rules.RuleSet(rules.Actions.require_access()), include=[health])
 ```
 
 ```toml
