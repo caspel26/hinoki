@@ -24,6 +24,7 @@ from typing import Any, NamedTuple
 import loadtool
 import parity_data
 import report_html
+from archive_refs import comparative_results_reference, result_date
 from report_html import Cell, Scenario, rps
 
 JSONData = dict[str, Any]
@@ -1094,9 +1095,7 @@ def method_section(directories: list[Path], first_env: JSONData) -> str:
         for d in directories
     ]
     locations = ", ".join(
-        sorted(
-            {f"`benchmarks/comparative/results/{d.parent.name}/`" for d in directories}
-        )
+        sorted({comparative_results_reference(result_date(d)) for d in directories})
     )
     kiso = any(
         KISO_KEY in stack_names(d, read_environment(d)["settings"]) for d in directories

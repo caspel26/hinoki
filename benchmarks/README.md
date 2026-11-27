@@ -222,8 +222,9 @@ raw Oha result, response verification, per-sample host load and SQL call counts.
 It records no result when the one-minute host load at sample start is above
 1.0. Treat the result as orientation data for this host and workload only.
 
-For reproduction and the retained data, see [Native CRUD orientation](../docs/rust-crud-orientation.md)
-and `comparative/results/2026-11-18/crud-phase1/`.
+For reproduction instructions, see [Native CRUD orientation](../docs/rust-crud-orientation.md).
+The raw results are available in the [2026-11-18 benchmark archive](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/bench-2026-11-18-crud-phase1.tar.gz)
+(SHA-256: `c32ea9a982b5bc5d30cce8d79f10bc93890603cebb123d4f927f41436049a3b2`; [checksum file](https://github.com/caspel26/hinoki/releases/download/bench-2026-11-18-crud-phase1/bench-2026-11-18-crud-phase1.tar.gz.sha256)).
 
 Run on Linux with `taskset`, Oha and Docker available. Start a fresh PostgreSQL
 17 container with a dynamically assigned loopback port, then set
@@ -237,7 +238,7 @@ uv sync --locked
 uv run --locked --with maturin maturin develop --release \
   --manifest-path ../../crates/bindings/Cargo.toml
 uv run --locked --no-sync python phase1_orientation.py \
-  --out results/2026-11-18/crud-phase1
+  --out results/YYYY-MM-DD/crud-phase1
 ```
 
 The script verifies that the Rust server arms list/retrieve/create/update
@@ -260,7 +261,7 @@ uv sync --locked
 uv run --locked --with maturin maturin develop --release \
   --manifest-path ../../crates/bindings/Cargo.toml
 uv run --locked --no-sync python phase1_orientation.py \
-  --out results/2026-11-18/crud-phase1
+  --out results/YYYY-MM-DD/crud-phase1
 ```
 
 The script verifies that the Rust server arms list/retrieve/create/update

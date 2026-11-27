@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from archive_refs import phase1_results_reference
 from phase1_metrics import request_count
 from phase1_seed import BASE_TITLE, BODY, FIXED_ID, seed
 
@@ -480,7 +481,7 @@ def write_report(
             "",
             "The paired ratio is a descriptive ratio of the five pairwise throughput values. The samples are not a universal ranking and do not establish production performance. Host, OS, Python, server, ORM, driver, database, warm-cache state, and workload all affect these results. CV above 15% marks that scenario as unstable for interpretation; no sample is dropped.",
             "",
-            f"Raw `oha` JSON, per-sample start-load metadata and SQL stats, server logs, environment metadata, verifier output, request bodies, and the machine-readable summary are retained in `{raw_path}/`.",
+            phase1_results_reference(raw_path),
             "",
             "Reproduction: build the native extension in release mode, start an isolated PostgreSQL 17 container, then run `phase1_orientation.py` as documented in `benchmarks/README.md`. The script refuses to time a sample whose starting load is above 1.0.",
         ]

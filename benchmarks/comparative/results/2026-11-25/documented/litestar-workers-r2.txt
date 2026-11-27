@@ -1,2 +1,0 @@
-pid pgid cputime command
-   4650    4650 00:01:21 /root/hinoki/benchmarks/comparative/.venv/bin/python -m uvicorn parity_litestar:app --workers 1 --port 8801 --loop uvloop --http httptools --log-level warning --no-access-log

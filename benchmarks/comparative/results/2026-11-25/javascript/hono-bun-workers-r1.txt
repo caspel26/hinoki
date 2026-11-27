@@ -1,2 +1,0 @@
-pid pgid cputime command
- 246990  246990 00:01:24 /root/.local/bin/bun js/hono_bun.js

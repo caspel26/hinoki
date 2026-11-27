@@ -1,2 +1,0 @@
-pid pgid cputime command
- 247979  247979 00:01:20 /usr/bin/node js/hono_node.js

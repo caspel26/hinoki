@@ -998,3 +998,29 @@ def test_the_conditions_and_commands_tell_the_worker_counts_apart() -> None:
         "python report.py results/YYYY-MM-DD/documented results/YYYY-MM-DD/kiso "
         "results/YYYY-MM-DD/w8/documented results/YYYY-MM-DD/w8/kiso"
     ) in page
+
+
+def test_archived_run_report_links_to_its_public_raw_results() -> None:
+    with results_root() as root:
+        archived = root.parent / "2026-11-25"
+        write_results(
+            archived / "documented",
+            "documented",
+            {"hinoki": (100.0,) * 3},
+        )
+        write_results(
+            archived / "w8" / "documented",
+            "documented",
+            {"hinoki": (500.0,) * 3},
+        )
+        path = archived / "w8" / "documented" / "environment.json"
+        env = json.loads(path.read_text())
+        env["settings"]["workers"] = 8
+        path.write_text(json.dumps(env))
+        page = page_of(archived / "documented", archived / "w8" / "documented")
+
+    assert (
+        "https://github.com/caspel26/hinoki/releases/download/bench-2026-11-25/" in page
+    )
+    assert "0db26f6e288a42f9532f9aad3e927e28690386ce0f262ee3ed1b456a4f32d7d5" in page
+    assert "`benchmarks/comparative/results/w8/`" not in page
