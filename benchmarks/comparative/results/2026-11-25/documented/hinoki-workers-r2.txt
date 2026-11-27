@@ -1,4 +1,0 @@
-pid pgid cputime command
-   3528    3528 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python -m granian --interface asgi --workers 1 --port 8801 --no-log parity_hinoki:app
-   3529    3528 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.resource_tracker import main;main(7)
-   3530    3528 00:02:11 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=8, pipe_handle=10) --multiprocessing-fork
