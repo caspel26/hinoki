@@ -167,15 +167,11 @@ pub fn parse_forwarded_proto(values: &[&[u8]]) -> Forwarded<&'static str> {
     }
 }
 
-/// The scheme a single `x-forwarded-proto` header names (after trimming and
-/// ignoring case): `Some(true)` for `https`, `Some(false)` for `http`. Any other
-/// value, or a repeated header, names nothing and the socket scheme stands.
-/// Names in `headers` are lowercase.
-pub fn forwarded_scheme(headers: &[Header]) -> Option<bool> {
-    let mut found = headers
-        .iter()
-        .filter(|(name, _)| name == b"x-forwarded-proto");
-    let (Some((_, value)), None) = (found.next(), found.next()) else {
+/// The scheme a single `x-forwarded-proto` header value names (after trimming
+/// and ignoring case): `Some(true)` for `https`, `Some(false)` for `http`. Any
+/// other value, or a repeated header, names nothing and the socket scheme stands.
+pub fn forwarded_scheme_values<'a>(mut values: impl Iterator<Item = &'a [u8]>) -> Option<bool> {
+    let (Some(value), None) = (values.next(), values.next()) else {
         return None;
     };
     let text = std::str::from_utf8(value).ok()?.trim_matches([' ', '\t']);
@@ -186,6 +182,19 @@ pub fn forwarded_scheme(headers: &[Header]) -> Option<bool> {
     } else {
         None
     }
+}
+
+/// The scheme a single `x-forwarded-proto` header names (after trimming and
+/// ignoring case): `Some(true)` for `https`, `Some(false)` for `http`. Any other
+/// value, or a repeated header, names nothing and the socket scheme stands.
+/// Names in `headers` are lowercase.
+pub fn forwarded_scheme(headers: &[Header]) -> Option<bool> {
+    forwarded_scheme_values(
+        headers
+            .iter()
+            .filter(|(name, _)| name == b"x-forwarded-proto")
+            .map(|(_, value)| value.as_slice()),
+    )
 }
 
 /// `true` when [`forwarded_scheme`] says https.

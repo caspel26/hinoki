@@ -21,7 +21,6 @@ use tokio::time::sleep;
 
 use crate::accept::{serve, ServerConfig, Stop};
 use crate::conn::{Answer, Backend, Incoming};
-use crate::headers::Header;
 use crate::metrics::{merge, Registry};
 use crate::proxy::Networks;
 use crate::stream::report;
@@ -89,14 +88,14 @@ impl Endpoint {
     }
 
     fn refusal(&self, request: &Incoming) -> Option<Answer> {
-        if request.method != "GET" && request.method != "HEAD" {
+        if request.method_str() != "GET" && request.method_str() != "HEAD" {
             let mut answer = status_only(405);
             answer
                 .headers
                 .push((b"allow".to_vec(), b"GET, HEAD".to_vec()));
             return Some(answer);
         }
-        if request.path != self.access.path {
+        if request.path() != self.access.path {
             return Some(status_only(404));
         }
         if let Some(allow) = &self.access.allow {
@@ -127,11 +126,11 @@ fn status_only(status: u16) -> Answer {
 
 /// Whether the single `authorization` header is `Bearer <token>`, compared in
 /// time that does not depend on where the tokens differ.
-fn bearer_matches(headers: &[Header], token: &str) -> bool {
+fn bearer_matches(headers: &hyper::HeaderMap, token: &str) -> bool {
     let mut given = headers
+        .get_all(hyper::header::AUTHORIZATION)
         .iter()
-        .filter(|(name, _)| name == b"authorization")
-        .map(|(_, value)| value.as_slice());
+        .map(hyper::header::HeaderValue::as_bytes);
     let (Some(value), None) = (given.next(), given.next()) else {
         return false;
     };
@@ -287,8 +286,15 @@ pub async fn serve_metrics(listener: TcpListener, endpoint: Arc<Endpoint>, stop:
 mod tests {
     use super::*;
 
-    fn header(value: &str) -> Header {
-        (b"authorization".to_vec(), value.as_bytes().to_vec())
+    fn headers_with(values: &[&str]) -> hyper::HeaderMap {
+        let mut map = hyper::HeaderMap::new();
+        for value in values {
+            map.append(
+                hyper::header::AUTHORIZATION,
+                hyper::header::HeaderValue::from_str(value).unwrap(),
+            );
+        }
+        map
     }
 
     #[tokio::test]
@@ -307,12 +313,17 @@ mod tests {
 
     #[test]
     fn only_the_exact_bearer_token_matches() {
-        assert!(bearer_matches(&[header("Bearer s3cret")], "s3cret"));
-        assert!(!bearer_matches(&[header("Bearer s3cre")], "s3cret"));
-        assert!(!bearer_matches(&[header("Bearer s3cretx")], "s3cret"));
-        assert!(!bearer_matches(&[header("Basic s3cret")], "s3cret"));
-        assert!(!bearer_matches(&[], "s3cret"));
-        let twice = [header("Bearer s3cret"), header("Bearer s3cret")];
-        assert!(!bearer_matches(&twice, "s3cret"));
+        assert!(bearer_matches(&headers_with(&["Bearer s3cret"]), "s3cret"));
+        assert!(!bearer_matches(&headers_with(&["Bearer s3cre"]), "s3cret"));
+        assert!(!bearer_matches(
+            &headers_with(&["Bearer s3cretx"]),
+            "s3cret"
+        ));
+        assert!(!bearer_matches(&headers_with(&["Basic s3cret"]), "s3cret"));
+        assert!(!bearer_matches(&headers_with(&[]), "s3cret"));
+        assert!(!bearer_matches(
+            &headers_with(&["Bearer s3cret", "Bearer s3cret"]),
+            "s3cret"
+        ));
     }
 }

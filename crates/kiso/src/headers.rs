@@ -1,10 +1,10 @@
 //! The final header list of an answer, in the order the Python runtime builds
 //! it (`core.response_headers`, then `content-length`).
 
-use hyper::header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
-use hyper::HeaderMap;
+use hyper::header::{CONTENT_LENGTH, CONTENT_TYPE};
 
-pub use hyper::header::HeaderName;
+pub use hyper::header::{HeaderName, HeaderValue};
+pub use hyper::{HeaderMap, Method, Uri};
 
 /// Header names the framework's security policy owns (lowercase). Mirrors
 /// `hinoki.runtime.security.POLICY_HEADERS`.

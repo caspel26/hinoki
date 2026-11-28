@@ -31,13 +31,13 @@ impl Backend for Producer {
     }
 
     async fn deliver(&self, request: Incoming) -> Delivery {
-        if request.path.starts_with("/file") {
-            return file(&request.path).await;
+        if request.path().starts_with("/file") {
+            return file(request.path()).await;
         }
         let (sender, chunks) = mpsc::channel(1);
         let mut headers = vec![(b"content-type".to_vec(), b"text/plain".to_vec())];
         let mut pace = Pace::default();
-        match request.path.as_str() {
+        match request.path() {
             "/two" => self.two(sender),
             "/forever" => self.forever(sender),
             "/idle" => {
@@ -49,7 +49,7 @@ impl Backend for Producer {
                 Self::late_event(sender);
             }
             "/short" | "/long" => {
-                let declared: &[u8] = if request.path == "/short" {
+                let declared: &[u8] = if request.path() == "/short" {
                     b"100"
                 } else {
                     b"1"

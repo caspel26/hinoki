@@ -30,16 +30,16 @@ impl Backend for Routes {
     }
 
     async fn deliver(&self, request: Incoming) -> Delivery {
-        if request.path.starts_with("/items/") {
-            request.trace.set_action(ITEM_ACTION);
+        if request.path().starts_with("/items/") {
+            request.set_trace_action(ITEM_ACTION);
             return Delivery::Whole(Answer {
                 status: 200,
                 headers: vec![(b"content-length".to_vec(), b"5".to_vec())],
                 body: Bytes::from_static(b"hello"),
             });
         }
-        if request.path == "/stream" {
-            request.trace.set_action(STREAM_ACTION);
+        if request.path() == "/stream" {
+            request.set_trace_action(STREAM_ACTION);
             let (sender, chunks) = mpsc::channel(4);
             tokio::spawn(async move {
                 let _ = sender.send(Ok(Bytes::from_static(b"ab"))).await;

@@ -12,7 +12,7 @@ use kiso::queue::Push;
 use kiso::ws::Upgrade;
 use kiso::{
     convert, Converted, Early, EarlyBodies, InFlight, InputParam, Limits, NativeJobs, Networks,
-    Plan, Queue, RoutePlan, Trace,
+    Plan, Queue, RoutePlan,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -24,7 +24,9 @@ use super::prepared::{
     Submission,
 };
 use super::reply::Reply;
-use super::routes::{build_routes, joined_value, latin1, Asked, Head, Outcome};
+use super::routes::{
+    build_routes, latin1, Asked, Head, Outcome, RequestHeaders, RequestMethod, RequestUri,
+};
 use crate::crudplan::{CrudPlan, PyCrudPlan};
 use crate::db::PyDatabase;
 use crate::jwt::{ClaimsAuth, PyClaimsAuth};
@@ -103,13 +105,15 @@ pub(super) fn prepare_native_inputs(
     plan: &RoutePlan,
     path_params: &[(String, String)],
     query: &[u8],
-    headers: &[Header],
+    headers: &RequestHeaders,
 ) -> Option<NativeInput> {
     let decoded_path = match decode_native_path(plan, path_params) {
         Ok(path) => path,
         Err(error) => return Some(NativeInput::failed(error)),
     };
-    let accept = joined_value(headers, b"accept").map_or_else(String::new, |v| latin1(&v));
+    let accept = headers
+        .joined("accept")
+        .map_or_else(String::new, |v| latin1(&v));
     if request::negotiate(&accept, &plan.media_types).is_none() {
         let mut error = native_error("not_acceptable", "not acceptable");
         error.available = Some(plan.media_types.join(", "));
@@ -779,10 +783,12 @@ impl ServerCore {
         https: bool,
     ) -> PyResult<Submission> {
         let head = Head {
-            method,
-            path,
-            query,
-            headers,
+            method: RequestMethod::Owned(method.to_owned()),
+            uri: RequestUri::Parts {
+                path: path.to_owned(),
+                query: query.to_vec(),
+            },
+            headers: RequestHeaders::Vec(headers),
             trusted,
             https,
             http_version: "1.1",
@@ -793,7 +799,7 @@ impl ServerCore {
         };
         let outcome = self
             .core
-            .classify(head, false, &Trace::default())
+            .classify(head, false, None)
             .map_err(PyRuntimeError::new_err)?;
         Ok(match outcome {
             Outcome::Early(reply) => Submission {
