@@ -83,6 +83,7 @@ def _worker() -> Any:
     worker.scheme = "http"
     worker.max_connections = 100
     worker.native_dispatch = False
+    worker.inline_dispatch = False
     worker.access_log = None
     worker.access_log_skip = None
     worker.access_log_slow_ms = None
@@ -405,6 +406,7 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
     worker.timer = SimpleNamespace(cancel=lambda: events.append("timer"))
     worker.core = SimpleNamespace(
         set_ready=lambda ready: events.append(f"ready:{ready}"),
+        _clear_inline_lane=lambda: None,
         _disarm_crud_plans=lambda: None,
         _detach_database=lambda: None,
     )
@@ -525,6 +527,7 @@ async def test_start_binds_only_after_success_and_registers_housekeeping(
     worker.parent = None
     worker.core = SimpleNamespace(
         set_ready=lambda ready: events.append(f"ready:{ready}"),
+        _clear_inline_lane=lambda: None,
         _disarm_crud_plans=lambda: None,
         _detach_database=lambda: None,
     )
