@@ -42,7 +42,7 @@ impl Backend for Fake {
                 body: bytes::Bytes::new(),
             };
         }
-        match request.path.as_str() {
+        match request.path() {
             "/slow" => {
                 self.started.notify_one();
                 self.release.notified().await;
@@ -63,18 +63,14 @@ impl Backend for Fake {
                     .headers
                     .iter()
                     .map(|(n, v)| {
-                        format!(
-                            "{}={}",
-                            String::from_utf8_lossy(n),
-                            String::from_utf8_lossy(v)
-                        )
+                        format!("{}={}", n.as_str(), String::from_utf8_lossy(v.as_bytes()))
                     })
                     .collect();
                 answer(&format!(
                     "{} {} {} {} {}",
                     request.method,
-                    request.path,
-                    String::from_utf8_lossy(&request.query),
+                    request.path(),
+                    String::from_utf8_lossy(request.query()),
                     request.peer.ip(),
                     headers.join(";")
                 ))

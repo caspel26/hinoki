@@ -254,6 +254,22 @@ impl Compression {
         }
     }
 
+    /// Like [`Compression::offer`], reading `accept-encoding` directly from a
+    /// `hyper::HeaderMap` without allocating an intermediate header list.
+    pub fn offer_map(self: &Arc<Self>, headers: &hyper::HeaderMap) -> Offer {
+        let mut accept = Vec::new();
+        for value in headers.get_all(hyper::header::ACCEPT_ENCODING) {
+            if !accept.is_empty() {
+                accept.push(b',');
+            }
+            accept.extend_from_slice(value.as_bytes());
+        }
+        Offer {
+            policy: Arc::clone(self),
+            accept,
+        }
+    }
+
     /// Rules 1 to 3: whether the answer may be compressed at all.
     fn eligible(&self, status: u16, headers: &[Header], shape: Shape) -> bool {
         !has_no_body(status, headers)

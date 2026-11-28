@@ -31,13 +31,13 @@ impl Backend for Echo {
     }
 
     async fn deliver(&self, request: Incoming) -> Delivery {
-        if request.path != "/ws" && request.path != "/ws-bad-protocol" {
+        if request.path() != "/ws" && request.path() != "/ws-bad-protocol" {
             return Delivery::Whole(self.handle(request).await);
         }
         let (inbound, mut from_client) = mpsc::channel(4);
         let (to_client, outbound) = mpsc::channel(4);
         let subprotocol = Some(
-            if request.path == "/ws" {
+            if request.path() == "/ws" {
                 "chat"
             } else {
                 "other"

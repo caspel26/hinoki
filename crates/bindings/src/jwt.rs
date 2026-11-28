@@ -749,6 +749,7 @@ fn plain_cookie<'a>(header: &'a [u8], name: &[u8]) -> CookieExtract<'a> {
     found.map_or(CookieExtract::Missing, CookieExtract::Token)
 }
 
+#[cfg(test)]
 fn single_header<'a>(
     headers: &'a [(Vec<u8>, Vec<u8>)],
     wanted: &[u8],
@@ -806,16 +807,20 @@ impl ClaimsAuth {
 
     /// Admit from raw request headers using either the configured cookie name
     /// or `Authorization: Bearer <token>`.
+    #[cfg(test)]
     pub(crate) fn admit_headers(&self, headers: &[(Vec<u8>, Vec<u8>)], now: i64) -> Admission {
-        if let Some(cookie_name) = self.cookie.as_deref() {
-            let Ok(raw) = single_header(headers, b"cookie") else {
-                return Admission::Defer;
-            };
-            return self.admit_cookie(raw, cookie_name.as_bytes(), now);
-        }
-        let Ok(raw) = single_header(headers, b"authorization") else {
+        self.admit_single(single_header(headers, self.credential_header_name()), now)
+    }
+
+    /// Admit from a pre-extracted single credential header (`Err(())` when
+    /// repeated, `Ok(None)` when absent).
+    pub(crate) fn admit_single(&self, single: Result<Option<&[u8]>, ()>, now: i64) -> Admission {
+        let Ok(raw) = single else {
             return Admission::Defer;
         };
+        if let Some(cookie_name) = self.cookie.as_deref() {
+            return self.admit_cookie(raw, cookie_name.as_bytes(), now);
+        }
         self.admit(raw, now)
     }
 

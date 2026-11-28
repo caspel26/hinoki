@@ -24,7 +24,7 @@ pub(crate) use self::prepared::{NativeBody, NativeBodyError, NativeFailure, Nati
 pub use self::reply::Reply;
 pub(crate) use self::reply::{FileReply, Sent};
 pub(crate) use self::routes::Outcome;
-pub use self::routes::{Asked, Head};
+pub use self::routes::{Asked, Head, RequestHeaders, RequestMethod, RequestUri};
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ServerCore>()?;

@@ -6,13 +6,14 @@ use std::sync::{Arc, Mutex};
 
 use hinoki_orm::Database;
 use kiso::cors::{Cors, PreflightError};
-use kiso::headers::{final_headers, Header};
+use kiso::headers::{final_headers, Header, HeaderMap, Method, Uri};
 use kiso::queue::Push;
 use kiso::redirect;
 use kiso::ws::Upgrade;
 use kiso::{proxy, requestid, BodyReader, Early, InputKind, InputParam, Plan, RoutePlan, Trace};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyDict, PyList};
 use tokio::sync::oneshot;
 
 use super::core::{
@@ -33,12 +34,200 @@ enum Resolved {
     Missing(Early, Vec<Header>),
 }
 
+/// HTTP method storage avoiding `String` allocation on the Kiso hot path.
+pub enum RequestMethod {
+    Hyper(Method),
+    Static(&'static str),
+    Owned(String),
+}
+
+impl RequestMethod {
+    pub(crate) fn as_str(&self) -> &str {
+        match self {
+            Self::Hyper(method) => method.as_str(),
+            Self::Static(method) => method,
+            Self::Owned(method) => method.as_str(),
+        }
+    }
+}
+
+/// Request URI storage avoiding `path` and `query` clones on the Kiso hot path.
+pub enum RequestUri {
+    Uri(Uri),
+    Parts { path: String, query: Vec<u8> },
+}
+
+impl RequestUri {
+    pub(crate) fn path(&self) -> &str {
+        match self {
+            Self::Uri(uri) => uri.path(),
+            Self::Parts { path, .. } => path.as_str(),
+        }
+    }
+
+    pub(crate) fn query(&self) -> &[u8] {
+        match self {
+            Self::Uri(uri) => uri.query().map_or(&[], str::as_bytes),
+            Self::Parts { query, .. } => query.as_slice(),
+        }
+    }
+}
+
+/// Request headers kept in `hyper::HeaderMap` on the Kiso hot path so no
+/// `Vec<(Vec<u8>, Vec<u8>)>` is allocated per request.
+pub enum RequestHeaders {
+    Map(HeaderMap),
+    Vec(Vec<Header>),
+}
+
+impl RequestHeaders {
+    pub(crate) fn joined(&self, name: &str) -> Option<Cow<'_, [u8]>> {
+        match self {
+            Self::Map(map) => joined_map_value(map, name),
+            Self::Vec(vec) => joined_value(vec, name.as_bytes()),
+        }
+    }
+
+    pub(crate) fn single(&self, name: &str) -> Result<Option<&[u8]>, ()> {
+        match self {
+            Self::Map(map) => {
+                let mut iter = map.get_all(name).iter();
+                let first = iter.next().map(|v| v.as_bytes());
+                if iter.next().is_some() {
+                    return Err(());
+                }
+                Ok(first)
+            }
+            Self::Vec(vec) => {
+                let mut iter = vec
+                    .iter()
+                    .filter(|(h, _)| h.eq_ignore_ascii_case(name.as_bytes()))
+                    .map(|(_, v)| v.as_slice());
+                let first = iter.next();
+                if iter.next().is_some() {
+                    return Err(());
+                }
+                Ok(first)
+            }
+        }
+    }
+
+    pub(crate) fn all_values<'a>(&'a self, name: &'a [u8]) -> Vec<&'a [u8]> {
+        match self {
+            Self::Map(map) => std::str::from_utf8(name)
+                .ok()
+                .map(|key| map.get_all(key).iter().map(|v| v.as_bytes()).collect())
+                .unwrap_or_default(),
+            Self::Vec(vec) => vec
+                .iter()
+                .filter(|(h, _)| h.eq_ignore_ascii_case(name))
+                .map(|(_, v)| v.as_slice())
+                .collect(),
+        }
+    }
+
+    pub(crate) fn header_total(&self) -> usize {
+        match self {
+            Self::Map(map) => kiso::limits::header_total(
+                map.iter()
+                    .map(|(n, v)| (n.as_str().as_bytes(), v.as_bytes())),
+            ),
+            Self::Vec(vec) => {
+                kiso::limits::header_total(vec.iter().map(|(n, v)| (n.as_slice(), v.as_slice())))
+            }
+        }
+    }
+
+    pub(crate) fn forwarded_scheme(&self) -> Option<bool> {
+        match self {
+            Self::Map(map) => proxy::forwarded_scheme_values(
+                map.get_all("x-forwarded-proto")
+                    .iter()
+                    .map(|v| v.as_bytes()),
+            ),
+            Self::Vec(vec) => proxy::forwarded_scheme(vec),
+        }
+    }
+
+    pub(crate) fn to_py_list<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let out = PyList::empty(py);
+        match self {
+            Self::Map(map) => {
+                for (name, value) in map {
+                    out.append((
+                        PyBytes::new(py, name.as_str().as_bytes()),
+                        PyBytes::new(py, value.as_bytes()),
+                    ))?;
+                }
+            }
+            Self::Vec(vec) => {
+                for (name, value) in vec {
+                    out.append((PyBytes::new(py, name), PyBytes::new(py, value)))?;
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    pub(crate) fn to_joined_py_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        match self {
+            Self::Map(map) => {
+                let pairs: Vec<(&[u8], &[u8])> = map
+                    .iter()
+                    .map(|(n, v)| (n.as_str().as_bytes(), v.as_bytes()))
+                    .collect();
+                crate::request::joined_header_dict(py, &pairs)
+            }
+            Self::Vec(vec) => crate::request::joined_header_dict(py, vec),
+        }
+    }
+
+    pub(crate) fn lookup(&self, name: &str) -> Option<String> {
+        match self {
+            Self::Map(map) => lookup_map_header(map, name),
+            Self::Vec(vec) => crate::request::lookup_header(vec, name),
+        }
+    }
+}
+
+fn joined_map_value<'a>(map: &'a HeaderMap, name: &str) -> Option<Cow<'a, [u8]>> {
+    let mut iter = map.get_all(name).iter();
+    let first = iter.next()?.as_bytes();
+    let Some(second) = iter.next() else {
+        return Some(Cow::Borrowed(first));
+    };
+    let mut joined = Vec::with_capacity(first.len() + 2 + second.as_bytes().len());
+    joined.extend_from_slice(first);
+    joined.extend_from_slice(b", ");
+    joined.extend_from_slice(second.as_bytes());
+    for extra in iter {
+        joined.extend_from_slice(b", ");
+        joined.extend_from_slice(extra.as_bytes());
+    }
+    Some(Cow::Owned(joined))
+}
+
+fn lookup_map_header(map: &HeaderMap, name: &str) -> Option<String> {
+    let mut iter = map.get_all(name).iter();
+    let first = iter.next()?.as_bytes();
+    let separator = if name.eq_ignore_ascii_case("cookie") {
+        "; "
+    } else {
+        ", "
+    };
+    let mut out = latin1(first);
+    for extra in iter {
+        out.push_str(separator);
+        out.push_str(&latin1(extra.as_bytes()));
+    }
+    Some(out)
+}
+
 /// A request head as the classifier takes it.
-pub struct Head<'a> {
-    pub method: &'a str,
-    pub path: &'a str,
-    pub query: &'a [u8],
-    pub headers: Vec<Header>,
+pub struct Head {
+    pub method: RequestMethod,
+    pub uri: RequestUri,
+    pub headers: RequestHeaders,
     pub trusted: bool,
     pub https: bool,
     /// `"2"` or `"1.1"`, as the transport saw the request.
@@ -152,15 +341,17 @@ impl Core {
     /// The WebSocket action a request addresses, if it is theirs to answer. A
     /// plain GET that an HTTP route also matches (`/rooms/stats` beside
     /// `/rooms/{room}`) is that route's, not a refused upgrade.
-    fn websocket_target(&self, head: &Head<'_>) -> Option<(u32, Vec<(String, String)>)> {
-        if head.method != "GET" || !head.path.is_ascii() || self.ws_plans.is_empty() {
+    fn websocket_target(&self, head: &Head) -> Option<(u32, Vec<(String, String)>)> {
+        let method = head.method.as_str();
+        let path = head.uri.path();
+        if method != "GET" || !path.is_ascii() || self.ws_plans.is_empty() {
             return None;
         }
-        let Match::Found { action, params } = self.ws_router.find("GET", head.path) else {
+        let Match::Found { action, params } = self.ws_router.find("GET", path) else {
             return None;
         };
         let plain_http = matches!(head.upgrade, Upgrade::Absent)
-            && matches!(self.resolve("GET", head.path), Resolved::Route(..));
+            && matches!(self.resolve("GET", path), Resolved::Route(..));
         (!plain_http).then_some((action, params))
     }
 
@@ -169,20 +360,20 @@ impl Core {
     /// early body), never a client mistake.
     pub(crate) fn classify(
         &self,
-        head: Head<'_>,
+        head: Head,
         native_execution: bool,
-        trace: &Trace,
+        trace: Option<&Trace>,
     ) -> Result<Outcome, String> {
         let (request_id, id_ignored) = self.request_id(&head.headers, head.trusted);
         let mut asked = Asked {
-            head_only: head.method == "HEAD",
+            head_only: head.method.as_str() == "HEAD",
             request_id,
             id_ignored,
             https: head.https,
             origin: origin_of(&head.headers),
             action: None,
         };
-        if let Some(early) = self.refuse(head.query, &head.headers) {
+        if let Some(early) = self.refuse(head.uri.query(), &head.headers) {
             return self.answer(&asked, early, Vec::new());
         }
         if let Some(early) = head.refusal.clone() {
@@ -191,32 +382,32 @@ impl Core {
         if let Some(outcome) = self.policy_response(&head, &asked)? {
             return Ok(outcome);
         }
+        let method = head.method.as_str();
+        let path = head.uri.path();
         let is_startup_probe = self
             .startup_probe
             .as_ref()
-            .is_some_and(|probe| probe.path == head.path);
+            .is_some_and(|probe| probe.path == path);
         if is_startup_probe {
-            return self.startup_response(&asked, head.method, head.query, &head.headers);
+            return self.startup_response(&asked, method, head.uri.query(), &head.headers);
         }
-        if let Some(page) = self.static_page(head.method, head.path) {
+        if let Some(page) = self.static_page(method, path) {
             return Ok(self.static_response(&asked, page));
         }
         if let Some((action, params)) = self.websocket_target(&head) {
             return self.websocket(head, asked, action, params);
         }
-        let (action, params) = match self.resolve(head.method, head.path) {
+        let (action, params) = match self.resolve(method, path) {
             // A raw target the server cannot read as a plain path, and the
             // documentation pages, are the Python pipeline's to answer.
-            _ if !head.path.is_ascii() || self.is_python_path(head.method, head.path) => {
-                (None, Vec::new())
-            }
+            _ if !path.is_ascii() || self.is_python_path(method, path) => (None, Vec::new()),
             Resolved::Route(action, params) => (Some(action), params),
             Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
         };
-        if let Some(pattern) = action.and_then(|number| self.templates.get(&number)) {
-            trace.set_route(Arc::clone(pattern));
-        }
-        if let Some(number) = action {
+        if let (Some(trace), Some(number)) = (trace, action) {
+            if let Some(pattern) = self.templates.get(&number) {
+                trace.set_route(Arc::clone(pattern));
+            }
             trace.set_action(number);
         }
         asked.action = action;
@@ -238,7 +429,8 @@ impl Core {
         };
         let native_handler = plan.native_handler;
         let mut native_input = if native_handler {
-            prepare_native_inputs(plan, &params, head.query, &head.headers).unwrap_or_default()
+            prepare_native_inputs(plan, &params, head.uri.query(), &head.headers)
+                .unwrap_or_default()
         } else {
             NativeInput::default()
         };
@@ -264,7 +456,7 @@ impl Core {
     /// the handshake that Python (access, subprotocol) decides.
     fn websocket(
         &self,
-        head: Head<'_>,
+        head: Head,
         asked: Asked,
         action: u32,
         params: Vec<(String, String)>,
@@ -295,7 +487,7 @@ impl Core {
         asked.action = None;
         let prepared = Some(prepare_python_path_params(&params));
         let head = Head {
-            method: "WS",
+            method: RequestMethod::Static("WS"),
             ..head
         };
         self.enqueue(
@@ -311,12 +503,12 @@ impl Core {
     /// The rule is `web::websocket_origin_allowed`, which the Python lane calls too.
     fn origin_allowed(
         &self,
-        headers: &[Header],
+        headers: &RequestHeaders,
         origin: &[u8],
         https: bool,
         plan: &WsPlan,
     ) -> bool {
-        let host = joined_value(headers, b"host");
+        let host = headers.joined("host");
         let cors: &[Vec<u8>] = self.cors.as_ref().map_or(&[], |cors| &cors.origins);
         websocket_origin_allowed(origin, host.as_deref(), https, &plan.origins, cors)
     }
@@ -330,7 +522,7 @@ impl Core {
     fn authenticate(
         &self,
         action: u32,
-        head: &Head<'_>,
+        head: &Head,
         input: &mut NativeInput,
     ) -> Option<(Early, Vec<Header>)> {
         let route = self.route_auth.get(&action)?;
@@ -343,7 +535,8 @@ impl Core {
                 "bad_path_encoding" | "invalid_query" | "internal_error"
             )
         });
-        if !input.enabled || reported_first || request::parse_query(head.query, 1000).is_err() {
+        if !input.enabled || reported_first || request::parse_query(head.uri.query(), 1000).is_err()
+        {
             return None;
         }
         let now = std::time::SystemTime::now()
@@ -356,7 +549,11 @@ impl Core {
                 .map(|value| (b"www-authenticate".to_vec(), value.clone()))
                 .collect()
         };
-        let refusal = match route.auth.admit_headers(&head.headers, now) {
+        let header_name = std::str::from_utf8(route.auth.credential_header_name()).ok()?;
+        let refusal = match route
+            .auth
+            .admit_single(head.headers.single(header_name), now)
+        {
             Admission::Admit {
                 subject,
                 scopes,
@@ -374,12 +571,12 @@ impl Core {
         Some(refusal)
     }
 
-    fn policy_response(&self, head: &Head<'_>, asked: &Asked) -> Result<Option<Outcome>, String> {
+    fn policy_response(&self, head: &Head, asked: &Asked) -> Result<Option<Outcome>, String> {
         if !self.has_policies() {
             return Ok(None);
         }
         // `Hosts` reads the header as the Latin-1 text `join_headers` makes.
-        let host = joined_value(&head.headers, b"host").map(latin1_bytes);
+        let host = head.headers.joined("host").map(latin1_bytes);
         let host_bytes = host.as_deref().unwrap_or_default();
         if self
             .hosts
@@ -396,7 +593,8 @@ impl Core {
         if !self.redirect_https || asked.https {
             return Ok(None);
         }
-        let Some(location) = redirect::location(host_bytes, head.path.as_bytes(), head.query)
+        let Some(location) =
+            redirect::location(host_bytes, head.uri.path().as_bytes(), head.uri.query())
         else {
             return Ok(None);
         };
@@ -410,14 +608,11 @@ impl Core {
     }
 
     /// The answer to a CORS preflight, or its refusal; `None` for any other request.
-    fn preflight_response(
-        &self,
-        head: &Head<'_>,
-        asked: &Asked,
-    ) -> Result<Option<Outcome>, String> {
-        let origin = joined_value(&head.headers, b"origin");
-        let requested = joined_value(&head.headers, b"access-control-request-method");
-        let Some((action, cors)) = self.preflight_policy(head.path, requested.as_deref()) else {
+    fn preflight_response(&self, head: &Head, asked: &Asked) -> Result<Option<Outcome>, String> {
+        let origin = head.headers.joined("origin");
+        let requested = head.headers.joined("access-control-request-method");
+        let Some((action, cors)) = self.preflight_policy(head.uri.path(), requested.as_deref())
+        else {
             return Ok(None);
         };
         // The answer, a refusal too, carries the policy that decided it.
@@ -425,7 +620,7 @@ impl Core {
             action,
             ..asked.clone()
         };
-        match cors.preflight(head.method, origin.as_deref(), requested.is_some()) {
+        match cors.preflight(head.method.as_str(), origin.as_deref(), requested.is_some()) {
             Ok(Some(own)) => self
                 .policy_reply(asked, 204, own, Vec::new())
                 .map(|reply| Some(Outcome::Early(reply))),
@@ -517,7 +712,7 @@ impl Core {
         asked: &Asked,
         method: &str,
         query: &[u8],
-        headers: &[Header],
+        headers: &RequestHeaders,
     ) -> Result<Outcome, String> {
         if !matches!(method, "GET" | "HEAD") {
             return self.answer(
@@ -526,12 +721,10 @@ impl Core {
                 vec![(b"allow".to_vec(), b"GET, HEAD".to_vec())],
             );
         }
-        let joined = request::join_headers(headers);
-        let accept = joined
-            .iter()
-            .find(|(name, _)| name == "accept")
-            .map_or("", |(_, value)| value.as_str());
-        if request::negotiate(accept, &["application/json".to_owned()]).is_none() {
+        let accept = headers
+            .joined("accept")
+            .map_or_else(String::new, |v| latin1(&v));
+        if request::negotiate(&accept, &["application/json".to_owned()]).is_none() {
             return self.answer(asked, Early::NotAcceptable, Vec::new());
         }
         if request::parse_query(query, 1000).is_err() {
@@ -570,7 +763,7 @@ impl Core {
     /// Take an in-flight slot and queue the request, or answer 503 natively.
     fn enqueue(
         &self,
-        head: Head<'_>,
+        head: Head,
         asked: Asked,
         (action, params): (Option<u32>, Vec<(String, String)>),
         needs_headers: bool,
@@ -595,9 +788,8 @@ impl Core {
             Vec::new()
         };
         let request = PreparedRequest {
-            method: head.method.to_owned(),
-            path: head.path.to_owned(),
-            query: head.query.to_vec(),
+            method: head.method,
+            uri: head.uri,
             headers: head.headers,
             request_id: asked.request_id.clone(),
             id_ignored: asked.id_ignored,
@@ -629,7 +821,7 @@ impl Core {
         let accepts_native_crud = native_execution
             && native_crud
             && route_plan.is_some_and(|route| {
-                let accept = joined_value(&request.headers, b"accept").unwrap_or_default();
+                let accept = request.headers.joined("accept").unwrap_or_default();
                 std::str::from_utf8(&accept)
                     .is_ok_and(|accept| request::negotiate(accept, &route.media_types).is_some())
             });
@@ -649,6 +841,7 @@ impl Core {
                 .and_then(|attached| attached.clone());
             if let (Some(plan), Some(database)) = (native_plan, database) {
                 let crud_params = request.params.clone();
+                let crud_query = request.uri.query().to_vec();
                 return Ok(Outcome::NativeCrud {
                     request: Box::new(request),
                     receiver,
@@ -656,7 +849,7 @@ impl Core {
                     plan: Arc::clone(plan),
                     database,
                     params: crud_params,
-                    query: head.query.to_vec(),
+                    query: crud_query,
                 });
             }
         }
@@ -684,25 +877,21 @@ impl Core {
     /// Whether the socket peer is a trusted proxy and, only then, the scheme it
     /// forwards (`None` when it names none). A forwarded scheme from anyone else
     /// is ignored.
-    pub fn peer_view(&self, peer: SocketAddr, headers: &[Header]) -> (bool, Option<bool>) {
+    pub fn peer_view(&self, peer: SocketAddr, headers: &RequestHeaders) -> (bool, Option<bool>) {
         let trusted = self.proxies.contains(peer.ip());
         (
             trusted,
-            trusted.then(|| proxy::forwarded_scheme(headers)).flatten(),
+            trusted.then(|| headers.forwarded_scheme()).flatten(),
         )
     }
 
     /// The inbound id only from a trusted peer (the caller knows the peer) and
     /// only when the application trusts inbound ids. The flag says a trusted
     /// peer sent an id header that was refused.
-    fn request_id(&self, headers: &[Header], trusted: bool) -> (String, bool) {
+    fn request_id(&self, headers: &RequestHeaders, trusted: bool) -> (String, bool) {
         let mut ignored = false;
         if trusted && self.trust_request_id {
-            let found: Vec<&[u8]> = headers
-                .iter()
-                .filter(|(name, _)| name.eq_ignore_ascii_case(&self.id_name))
-                .map(|(_, value)| value.as_slice())
-                .collect();
+            let found = headers.all_values(&self.id_name);
             if let Some(id) = requestid::inbound(&found) {
                 return (id.to_owned(), false);
             }
@@ -725,13 +914,12 @@ impl Core {
     }
 
     /// Not-ready and oversized requests are refused before routing, in this order.
-    fn refuse(&self, query: &[u8], headers: &[Header]) -> Option<Early> {
+    fn refuse(&self, query: &[u8], headers: &RequestHeaders) -> Option<Early> {
         if !self.ready.load(Ordering::Acquire) {
             return Some(Early::NotReady);
         }
-        let total =
-            kiso::limits::header_total(headers.iter().map(|(n, v)| (n.as_slice(), v.as_slice())));
-        self.limits.check_request(query.len(), total)
+        self.limits
+            .check_request(query.len(), headers.header_total())
     }
 
     /// Route lookup with the Python `Hinoki.lookup` rules: HEAD borrows a GET
@@ -838,13 +1026,10 @@ pub struct Asked {
 
 /// The `Origin` header as `origin_of` in the Python pipeline reads it: repeated
 /// headers are joined with ", ", so they match no single origin.
-fn origin_of(headers: &[Header]) -> Vec<u8> {
-    let found: Vec<&[u8]> = headers
-        .iter()
-        .filter(|(name, _)| name == b"origin")
-        .map(|(_, value)| value.as_slice())
-        .collect();
-    found.join(&b", "[..])
+fn origin_of(headers: &RequestHeaders) -> Vec<u8> {
+    headers
+        .joined("origin")
+        .map_or_else(Vec::new, Cow::into_owned)
 }
 
 /// One request header as `request::join_headers` reads it: the name compared

@@ -30,8 +30,8 @@ use tokio::task::{AbortHandle, JoinHandle};
 use crate::crudplan::CrudPlan;
 use crate::nativecrud::{NativeRead, NativeWrite};
 use crate::server::{
-    Asked, Core, FileReply, Head, NativeFailure, NativeRows, Outcome, PreparedRequest, Sent,
-    ServerCore,
+    Asked, Core, FileReply, Head, NativeFailure, NativeRows, Outcome, PreparedRequest,
+    RequestHeaders, RequestMethod, RequestUri, Sent, ServerCore,
 };
 use hinoki_orm::{Database, DbError, ErrorKind as DbErrorKind};
 
@@ -186,8 +186,7 @@ impl CoreBackend {
     fn classify_request(&self, request: Incoming) -> Option<Outcome> {
         let Incoming {
             method,
-            path,
-            query,
+            uri,
             headers,
             peer,
             secure,
@@ -197,13 +196,13 @@ impl CoreBackend {
             trace,
             upgrade,
         } = request;
+        let headers = RequestHeaders::Map(headers);
         let (trusted, forwarded) = self.core.peer_view(peer, &headers);
         // A trusted proxy's scheme wins, like the Python resolution does.
         let https = forwarded.unwrap_or(secure);
         let head = Head {
-            method: &method,
-            path: &path,
-            query: &query,
+            method: RequestMethod::Hyper(method),
+            uri: RequestUri::Uri(uri),
             headers,
             trusted,
             https,
@@ -213,12 +212,14 @@ impl CoreBackend {
             body,
             upgrade,
         };
-        let outcome = self.core.classify(head, true, &trace).ok()?;
-        trace.set(match outcome {
-            Outcome::Early(_) => Lane::Early,
-            Outcome::Queued { .. } | Outcome::Inline { .. } => Lane::Python,
-            Outcome::NativeCrud { .. } => Lane::Native,
-        });
+        let outcome = self.core.classify(head, true, trace.as_deref()).ok()?;
+        if let Some(trace) = trace {
+            trace.set(match outcome {
+                Outcome::Early(_) => Lane::Early,
+                Outcome::Queued { .. } | Outcome::Inline { .. } => Lane::Python,
+                Outcome::NativeCrud { .. } => Lane::Native,
+            });
+        }
         Some(outcome)
     }
 

@@ -75,9 +75,9 @@ fn answer(body: &[u8]) -> Answer {
 fn hosts_of(request: &Incoming) -> String {
     let hosts: Vec<String> = request
         .headers
+        .get_all("host")
         .iter()
-        .filter(|(name, _)| name == b"host")
-        .map(|(_, value)| String::from_utf8_lossy(value).into_owned())
+        .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned())
         .collect();
     hosts.join(",")
 }
@@ -91,7 +91,7 @@ impl Backend for Fake {
                 ..answer(b"")
             };
         }
-        match request.path.as_str() {
+        match request.path() {
             "/info" => answer(
                 format!(
                     "method={} version={} secure={} hosts={} refusal={}",
@@ -158,7 +158,7 @@ impl Backend for Fake {
     }
 
     async fn deliver(&self, request: Incoming) -> Delivery {
-        match request.path.as_str() {
+        match request.path() {
             "/live" => Self::live(),
             "/sse" => Self::sse(),
             "/abort" => Self::abort(),

@@ -278,17 +278,14 @@ fn read_budget(limits: &WsgiLimits) -> usize {
 
 /// The bytes a request reserves: its declared length, or the largest body when
 /// it is chunked or declares nothing parseable.
-fn claimed_bytes(headers: &[(Vec<u8>, Vec<u8>)], max_body_bytes: usize) -> u32 {
-    let declared = headers
-        .iter()
-        .find(|(name, _)| name == b"content-length")
-        .and_then(|(_, value)| {
-            std::str::from_utf8(value)
-                .ok()?
-                .trim()
-                .parse::<usize>()
-                .ok()
-        });
+fn claimed_bytes(headers: &kiso::headers::HeaderMap, max_body_bytes: usize) -> u32 {
+    let declared = headers.get("content-length").and_then(|value| {
+        std::str::from_utf8(value.as_bytes())
+            .ok()?
+            .trim()
+            .parse::<usize>()
+            .ok()
+    });
     let claim = declared.map_or(max_body_bytes, |bytes| bytes.min(max_body_bytes));
     u32::try_from(claim.max(1)).unwrap_or(u32::MAX)
 }
@@ -393,13 +390,14 @@ impl WsgiBackend {
         if let Some(early) = &request.refusal {
             return plain(early.status(), "the request was refused\n");
         }
-        if unsafe_path(&request.path) {
+        if unsafe_path(request.path()) {
             return plain(400, "the request path is invalid\n");
         }
+        let method = request.method_str().to_owned();
+        let path = request.path().to_owned();
+        let query = request.query().to_vec();
+        let raw_headers = request.headers_vec();
         let Incoming {
-            method,
-            path,
-            query,
             headers,
             peer,
             secure,
@@ -431,7 +429,7 @@ impl WsgiBackend {
             method,
             path,
             query,
-            headers,
+            headers: raw_headers,
             peer,
             secure,
             http_version,
@@ -498,12 +496,16 @@ impl Backend for WsgiBackend {
     }
 
     async fn deliver(&self, request: Incoming) -> Delivery {
-        let trace = Arc::clone(&request.trace);
+        let trace = request.trace.clone();
         let delivery = self.submit(request).await;
-        trace.set(match &delivery {
-            Delivery::Whole(answer) if answer.status >= 400 && answer.status != 500 => Lane::Early,
-            _ => Lane::Python,
-        });
+        if let Some(trace) = trace {
+            trace.set(match &delivery {
+                Delivery::Whole(answer) if answer.status >= 400 && answer.status != 500 => {
+                    Lane::Early
+                }
+                _ => Lane::Python,
+            });
+        }
         delivery
     }
 }
@@ -687,16 +689,15 @@ mod tests {
 
     fn incoming() -> Incoming {
         Incoming {
-            method: "GET".into(),
-            path: "/".into(),
-            query: Vec::new(),
-            headers: Vec::new(),
+            method: kiso::headers::Method::GET,
+            uri: kiso::headers::Uri::from_static("/"),
+            headers: kiso::headers::HeaderMap::new(),
             peer: "127.0.0.1:1".parse().unwrap(),
             secure: false,
             http_version: "1.1",
             refusal: None,
             body: None,
-            trace: Arc::new(Trace::default()),
+            trace: Some(Arc::new(Trace::default())),
             upgrade: kiso::ws::Upgrade::Absent,
         }
     }
@@ -768,11 +769,18 @@ def bridge(call):
 
     #[test]
     fn a_body_claims_its_declared_length_or_the_largest_body() {
-        let length = |value: &[u8]| vec![(b"content-length".to_vec(), value.to_vec())];
+        let length = |value: &[u8]| {
+            let mut map = kiso::headers::HeaderMap::new();
+            map.insert(
+                "content-length",
+                kiso::headers::HeaderValue::from_bytes(value).unwrap(),
+            );
+            map
+        };
         assert_eq!(claimed_bytes(&length(b"10"), 1024), 10);
         assert_eq!(claimed_bytes(&length(b"99999"), 1024), 1024);
         assert_eq!(claimed_bytes(&length(b"x"), 1024), 1024);
-        assert_eq!(claimed_bytes(&[], 1024), 1024);
+        assert_eq!(claimed_bytes(&kiso::headers::HeaderMap::new(), 1024), 1024);
         let limits = WsgiLimits {
             threads: 2,
             queue: 3,
@@ -864,7 +872,7 @@ def bridge(call):
         let backend = backend(ANSWERS, 1, 1);
         for path in ["/a/../b", "/x%00y"] {
             let mut request = incoming();
-            request.path = path.into();
+            request.uri = path.parse().unwrap();
             assert_eq!(runtime().block_on(backend.deliver(request)).status(), 400);
         }
     }

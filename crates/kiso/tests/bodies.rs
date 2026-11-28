@@ -38,11 +38,11 @@ fn answer(status: u16, body: &[u8]) -> Answer {
 
 impl Backend for Probe {
     async fn handle(&self, mut request: Incoming) -> Answer {
-        self.seen.lock().unwrap().push(request.path.clone());
+        self.seen.lock().unwrap().push(request.path().to_owned());
         if let Some(early) = &request.refusal {
             return answer(early.status(), b"");
         }
-        match request.path.as_str() {
+        match request.path() {
             "/read" => {
                 let Some(body) = request.body.take() else {
                     return answer(200, b"");

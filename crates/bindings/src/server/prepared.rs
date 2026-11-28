@@ -13,7 +13,7 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use tokio::sync::{mpsc, oneshot};
 
 use super::reply::{answer_to_py, reply_to_py, FileReply, Reply, Sent};
-use super::routes::joined_value;
+use super::routes::{RequestHeaders, RequestMethod, RequestUri};
 use crate::completion;
 use crate::handoff;
 use crate::sink::{ResponseSink, CHANNEL_SLOTS};
@@ -102,10 +102,9 @@ impl NativeBody {
 /// A request accepted for the Python pipeline. `respond` completes it once.
 #[pyclass(name = "PreparedRequest", module = "hinoki.core", frozen)]
 pub struct PreparedRequest {
-    pub(super) method: String,
-    pub(super) path: String,
-    pub(super) query: Vec<u8>,
-    pub(super) headers: Vec<Header>,
+    pub(super) method: RequestMethod,
+    pub(super) uri: RequestUri,
+    pub(super) headers: RequestHeaders,
     pub(super) request_id: String,
     pub(super) id_ignored: bool,
     pub(super) action: Option<u32>,
@@ -142,20 +141,18 @@ impl PreparedRequest {
     }
 
     pub(crate) fn header_value(&self, name: &[u8]) -> Option<Vec<u8>> {
-        joined_value(&self.headers, name).map(Cow::into_owned)
+        std::str::from_utf8(name)
+            .ok()
+            .and_then(|name| self.headers.joined(name))
+            .map(Cow::into_owned)
     }
 
     /// The request header `name` when it appears exactly once (several
     /// occurrences are not read as one value).
     pub(crate) fn single_header(&self, name: &[u8]) -> Option<&[u8]> {
-        let mut found = self
-            .headers
-            .iter()
-            .filter(|(header, _)| header.eq_ignore_ascii_case(name));
-        match (found.next(), found.next()) {
-            (Some((_, value)), None) => Some(value.as_slice()),
-            _ => None,
-        }
+        std::str::from_utf8(name)
+            .ok()
+            .and_then(|name| self.headers.single(name).ok().flatten())
     }
 
     pub(crate) fn buffer_native_body(&self, bytes: Vec<u8>) -> bool {
@@ -258,17 +255,17 @@ impl PreparedRequest {
 impl PreparedRequest {
     #[getter]
     fn method(&self) -> &str {
-        &self.method
+        self.method.as_str()
     }
 
     #[getter]
     fn path(&self) -> &str {
-        &self.path
+        self.uri.path()
     }
 
     #[getter]
     fn query<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
-        PyBytes::new(py, &self.query)
+        PyBytes::new(py, self.uri.query())
     }
 
     #[getter]
@@ -401,23 +398,19 @@ impl PreparedRequest {
 
     #[getter]
     fn headers<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
-        let out = PyList::empty(py);
-        for (name, value) in &self.headers {
-            out.append((PyBytes::new(py, name), PyBytes::new(py, value)))?;
-        }
-        Ok(out)
+        self.headers.to_py_list(py)
     }
 
     /// Lower-cased, comma-joined header dict built directly from the native
-    /// header vector without first materializing a Python list of byte pairs.
+    /// header storage without first materializing a Python list of byte pairs.
     #[getter]
     fn header_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        crate::request::joined_header_dict(py, &self.headers)
+        self.headers.to_joined_py_dict(py)
     }
 
     /// Look up one lower-case header value without materializing `header_dict`.
     fn header(&self, name: &str) -> Option<String> {
-        crate::request::lookup_header(&self.headers, name)
+        self.headers.lookup(name)
     }
 
     /// Read the request body (empty bytes when there is none), refusing more
@@ -811,7 +804,7 @@ impl PreparedRequest {
             status,
             body.len(),
         )?;
-        let final_body = if self.method == "HEAD" {
+        let final_body = if self.method.as_str() == "HEAD" {
             bytes::Bytes::new()
         } else {
             body
@@ -857,7 +850,7 @@ impl PreparedRequest {
             status,
             body_len,
         );
-        let final_body = if self.method == "HEAD" {
+        let final_body = if self.method.as_str() == "HEAD" {
             bytes::Bytes::new()
         } else {
             body

@@ -25,7 +25,7 @@ use hyper::body::{Body, Incoming as RequestBody};
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::request::Parts;
 use hyper::upgrade::OnUpgrade;
-use hyper::{Method, Request, Response, StatusCode, Version};
+use hyper::{HeaderMap, Method, Request, Response, StatusCode, Uri, Version};
 
 use crate::accesslog::{self, AccessLog, Lane, LogFilter, Sink, Trace};
 use crate::body::BodyReader;
@@ -39,16 +39,15 @@ use crate::ws::{self, Upgrade};
 use crate::wsrun::{Accepted, Session};
 
 /// The head of a request as the backend sees it. Header names are lowercase,
-/// repeated headers stay separate and in arrival order, and `path` and `query`
+/// repeated headers stay separate and in arrival order, and `path()` and `query()`
 /// are the raw (still percent-encoded) target. An absolute-form target makes its
 /// authority the `host` header, and so does the `:authority` of an HTTP/2
 /// request, which wins over a `host` header that differs (RFC 9113 8.3.1).
 #[derive(Debug)]
 pub struct Incoming {
-    pub method: String,
-    pub path: String,
-    pub query: Vec<u8>,
-    pub headers: Vec<Header>,
+    pub method: Method,
+    pub uri: Uri,
+    pub headers: HeaderMap,
     pub peer: SocketAddr,
     /// The connection is TLS: the request arrived over https.
     pub secure: bool,
@@ -60,10 +59,42 @@ pub struct Incoming {
     /// The request body, unread; `None` when the request has none. Nothing is
     /// polled (and no `100 Continue` sent) until the backend reads it.
     pub body: Option<BodyReader>,
-    /// Filled in by the backend with where it served the request, for the log.
-    pub trace: Arc<Trace>,
+    /// Filled in by the backend with where it served the request, for the log,
+    /// `Server-Timing`, or metrics. `None` when all three are disabled.
+    pub trace: Option<Arc<Trace>>,
     /// Whether the request asks to switch to WebSocket (HTTP/1.1 only).
     pub upgrade: Upgrade,
+}
+
+impl Incoming {
+    pub fn method_str(&self) -> &str {
+        self.method.as_str()
+    }
+
+    pub fn path(&self) -> &str {
+        self.uri.path()
+    }
+
+    pub fn query(&self) -> &[u8] {
+        self.uri.query().map_or(&[], str::as_bytes)
+    }
+
+    pub fn headers_vec(&self) -> Vec<Header> {
+        headers_to_vec(&self.headers)
+    }
+
+    pub fn set_trace_action(&self, action: u32) {
+        if let Some(trace) = &self.trace {
+            trace.set_action(action);
+        }
+    }
+}
+
+pub(crate) fn headers_to_vec(headers: &HeaderMap) -> Vec<Header> {
+    headers
+        .iter()
+        .map(|(name, value)| (name.as_str().as_bytes().to_vec(), value.as_bytes().to_vec()))
+        .collect()
 }
 
 /// A complete answer: final status, final headers and the whole body.
@@ -96,11 +127,14 @@ fn plain(status: StatusCode) -> Response<Reply> {
 /// the host, replacing the header. HTTP/2 has no Host rule, but without
 /// `:authority` more than one `host` header is as ambiguous as on HTTP/1.1 and
 /// is refused the same way.
-fn refusal_of(parts: &Parts, headers: &mut Vec<Header>) -> Option<Early> {
-    let hosts = headers.iter().filter(|(name, _)| name == b"host").count();
+fn refusal_of(parts: &mut Parts) -> Option<Early> {
+    let hosts = parts.headers.get_all(hyper::header::HOST).iter().count();
     if let Some(authority) = parts.uri.authority() {
-        headers.retain(|(name, _)| name != b"host");
-        headers.push((b"host".to_vec(), authority.as_str().as_bytes().to_vec()));
+        let value = HeaderValue::from_str(authority.as_str()).ok();
+        parts.headers.remove(hyper::header::HOST);
+        if let Some(value) = value {
+            parts.headers.insert(hyper::header::HOST, value);
+        }
     }
     let ambiguous = match parts.version {
         Version::HTTP_11 => hosts != 1,
@@ -111,49 +145,46 @@ fn refusal_of(parts: &Parts, headers: &mut Vec<Header>) -> Option<Early> {
 }
 
 fn incoming_of(
-    parts: &Parts,
+    mut parts: Parts,
     body: Option<BodyReader>,
     peer: SocketAddr,
     transport: &Transport,
+    needs_trace: bool,
 ) -> Incoming {
-    let mut headers: Vec<Header> = parts
-        .headers
-        .iter()
-        .map(|(name, value)| (name.as_str().as_bytes().to_vec(), value.as_bytes().to_vec()))
-        .collect();
     // hyper enforces `max_headers` on HTTP/1 while parsing; h2 only bounds the
     // list by size, so the count is checked here.
     // h2 sends one `cookie` field per crumb (RFC 9113 8.2.3); they are one line
     // on HTTP/1, so they count once.
-    let crumbs = headers.iter().filter(|(name, _)| name == b"cookie").count();
-    let fields = headers.len() - crumbs.saturating_sub(1);
+    let crumbs = parts.headers.get_all(hyper::header::COOKIE).iter().count();
+    let fields = parts.headers.len() - crumbs.saturating_sub(1);
     let refusal = if fields > transport.max_headers {
         Some(Early::HeadersTooLarge)
     } else {
-        refusal_of(parts, &mut headers)
+        refusal_of(&mut parts)
     };
     let upgrade = if parts.version == Version::HTTP_2
         || !parts.headers.contains_key(hyper::header::UPGRADE)
     {
         Upgrade::Absent
     } else {
+        let headers = headers_to_vec(&parts.headers);
         ws::inspect(parts.method.as_str(), &headers)
     };
+    let http_version = if parts.version == Version::HTTP_2 {
+        "2"
+    } else {
+        "1.1"
+    };
     Incoming {
-        method: parts.method.as_str().to_owned(),
-        path: parts.uri.path().to_owned(),
-        query: parts.uri.query().unwrap_or("").as_bytes().to_vec(),
-        headers,
+        method: parts.method,
+        uri: parts.uri,
+        headers: parts.headers,
         peer,
         secure: transport.secure,
-        http_version: if parts.version == Version::HTTP_2 {
-            "2"
-        } else {
-            "1.1"
-        },
+        http_version,
         refusal,
         body,
-        trace: Arc::default(),
+        trace: needs_trace.then(Arc::default),
         upgrade,
     }
 }
@@ -382,11 +413,11 @@ struct Metered {
 }
 
 impl Metered {
-    fn begin(registry: &Arc<Registry>, incoming: &Incoming) -> Self {
+    fn begin(registry: &Arc<Registry>, incoming: &Incoming, trace: Arc<Trace>) -> Self {
         Self {
             registry: Arc::clone(registry),
-            trace: Arc::clone(&incoming.trace),
-            method: Registry::method_index(&incoming.method),
+            trace,
+            method: Registry::method_index(incoming.method.as_str()),
             in_flight: registry.enter(),
         }
     }
@@ -412,9 +443,8 @@ impl Metered {
 /// The parts of a request an access-log line needs, kept past the handoff.
 struct LoggedHead {
     peer: SocketAddr,
-    method: String,
-    path: String,
-    query: Vec<u8>,
+    method: Method,
+    uri: Uri,
     http_version: &'static str,
     trace: Arc<Trace>,
 }
@@ -425,9 +455,9 @@ impl LoggedHead {
             style,
             &accesslog::Entry {
                 peer: self.peer,
-                method: &self.method,
-                path: &self.path,
-                query: &self.query,
+                method: self.method.as_str(),
+                path: self.uri.path(),
+                query: self.uri.query().map_or(&[], str::as_bytes),
                 http_version: self.http_version,
                 status,
                 elapsed,
@@ -440,14 +470,13 @@ impl LoggedHead {
 }
 
 impl Incoming {
-    fn clone_head(&self) -> LoggedHead {
+    fn clone_head(&self, trace: Arc<Trace>) -> LoggedHead {
         LoggedHead {
             peer: self.peer,
             method: self.method.clone(),
-            path: self.path.clone(),
-            query: self.query.clone(),
+            uri: self.uri.clone(),
             http_version: self.http_version,
-            trace: Arc::clone(&self.trace),
+            trace,
         }
     }
 }
@@ -481,22 +510,30 @@ pub async fn respond<B: Backend>(
     let (parts, body) = request.into_parts();
     let body = (!body.is_end_stream()).then(|| BodyReader::new(body, transport.body_read_timeout));
     let finished = body.as_ref().map(BodyReader::finished);
-    let incoming = incoming_of(&parts, body, peer, &transport);
     let needs_clock =
         transport.access_log.is_some() || transport.server_timing || transport.metrics.is_some();
+    let incoming = incoming_of(parts, body, peer, &transport, needs_clock);
     let started = needs_clock.then(Instant::now);
-    let logged = transport
-        .access_log
-        .map(|style| (style, incoming.clone_head()));
-    let timed = transport.server_timing.then(|| Arc::clone(&incoming.trace));
-    let metered = transport
-        .metrics
-        .as_ref()
-        .map(|registry| Metered::begin(registry, &incoming));
+    let logged = transport.access_log.and_then(|style| {
+        incoming
+            .trace
+            .as_ref()
+            .map(|trace| (style, incoming.clone_head(Arc::clone(trace))))
+    });
+    let timed = transport
+        .server_timing
+        .then(|| incoming.trace.as_ref().map(Arc::clone))
+        .flatten();
+    let metered = transport.metrics.as_ref().and_then(|registry| {
+        incoming
+            .trace
+            .as_ref()
+            .map(|trace| Metered::begin(registry, &incoming, Arc::clone(trace)))
+    });
     let offer = transport
         .compression
         .as_ref()
-        .map(|policy| policy.offer(&incoming.headers));
+        .map(|policy| policy.offer_map(&incoming.headers));
     let handshake = incoming.upgrade.clone();
     let delivery = backend.deliver(incoming).await;
     let mut invalid = false;
@@ -525,7 +562,7 @@ pub async fn respond<B: Backend>(
     });
     if let Some((style, head)) = logged {
         let elapsed = started.as_ref().map_or(Duration::ZERO, Instant::elapsed);
-        if transport.log_filter.keeps(&head.path, status, elapsed) {
+        if transport.log_filter.keeps(head.uri.path(), status, elapsed) {
             head.log(style, status, elapsed, transport.log_filter.sink.as_ref());
         }
     }

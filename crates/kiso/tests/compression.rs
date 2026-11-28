@@ -39,7 +39,7 @@ impl Backend for Producer {
     }
 
     async fn deliver(&self, request: Incoming) -> Delivery {
-        if request.path == "/whole" {
+        if request.path() == "/whole" {
             let body = TEXT.repeat(40_000);
             return Delivery::Whole(Answer {
                 status: 200,
