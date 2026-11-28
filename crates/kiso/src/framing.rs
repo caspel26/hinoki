@@ -167,6 +167,74 @@ impl Framing {
 
     /// Scan until the head ends or the bytes run out; returns how many bytes it used.
     fn scan_head(&mut self, bytes: &mut [u8]) -> usize {
+        if self.collected.is_empty() {
+            return self.scan_head_slice(bytes);
+        }
+        self.scan_head_buffered(bytes)
+    }
+
+    /// Zero-copy fast path when the head starts at `bytes[0]`: scans line by line
+    /// in place without copying into `self.collected`, falling back to buffering
+    /// only if the head is split across reads.
+    fn scan_head_slice(&mut self, bytes: &mut [u8]) -> usize {
+        let limit = bytes.len().min(self.max_head.saturating_add(1));
+        let mut pos = 0;
+        while pos < limit {
+            let Some(rel) = bytes[pos..limit].iter().position(|&b| b == b'\n') else {
+                return self.finish_partial_slice(bytes, pos, limit);
+            };
+            let nl = pos + rel;
+            if let Some(done) = self.scan_slice_line(bytes, pos, nl) {
+                return done;
+            }
+            pos = nl + 1;
+        }
+        if !bytes.is_empty() {
+            self.collected.extend_from_slice(bytes);
+            self.line_start = bytes.len();
+            self.previous = b'\n';
+        }
+        bytes.len()
+    }
+
+    fn finish_partial_slice(&mut self, bytes: &mut [u8], pos: usize, limit: usize) -> usize {
+        if limit > self.max_head {
+            bytes[self.max_head] = 0;
+            self.give_up();
+            return self.max_head + 1;
+        }
+        self.collected.extend_from_slice(bytes);
+        self.line_start = pos;
+        self.previous = *bytes.last().unwrap_or(&0);
+        self.started |= bytes[pos..].iter().any(|&b| b != b'\r');
+        bytes.len()
+    }
+
+    fn scan_slice_line(&mut self, bytes: &mut [u8], pos: usize, nl: usize) -> Option<usize> {
+        let prev = if nl > 0 { bytes[nl - 1] } else { self.previous };
+        if nl >= self.max_head || prev != b'\r' {
+            bytes[nl] = 0;
+            self.give_up();
+            return Some(nl + 1);
+        }
+        let line = &bytes[pos..=nl];
+        if line.len() == 2 {
+            if self.started {
+                self.end_head();
+                return Some(nl + 1);
+            }
+            return None;
+        }
+        self.started |= line[..line.len() - 2].iter().any(|&b| b != b'\r');
+        if self.classify_line(line) {
+            bytes[nl] = 0;
+            self.give_up();
+            return Some(nl + 1);
+        }
+        None
+    }
+
+    fn scan_head_buffered(&mut self, bytes: &mut [u8]) -> usize {
         for (index, byte) in bytes.iter_mut().enumerate() {
             let bare = *byte == b'\n' && self.previous != b'\r';
             self.previous = *byte;
@@ -192,9 +260,17 @@ impl Framing {
     /// Account for the header line just completed; `true` when it conflicts
     /// with what the head declared before.
     fn line_refused(&mut self) -> bool {
-        let line = &self.collected[self.line_start..];
-        let kind = classify(line);
+        let start = self.line_start;
         self.line_start = self.collected.len();
+        let kind = classify(&self.collected[start..]);
+        self.account_line(kind)
+    }
+
+    fn classify_line(&mut self, line: &[u8]) -> bool {
+        self.account_line(classify(line))
+    }
+
+    fn account_line(&mut self, kind: Line) -> bool {
         match kind {
             Line::Length(declared) => {
                 self.lengths = self.lengths.saturating_add(1);
@@ -573,5 +649,35 @@ transfer-encoding: chunked
         let mut f = Framing::new(head.len(), Arc::clone(&close));
         assert_eq!(run(&mut f, &[&head[..3], &head[3..]]), head);
         assert!(!close.close.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn single_read_fast_path_leaves_collected_empty() {
+        let (mut f, close) = framing();
+        let head = b"GET /items HTTP/1.1\r\nhost: example.com\r\n\r\n";
+        assert_eq!(run(&mut f, &[head]), head);
+        assert!(!close.close.load(Ordering::Acquire));
+        assert_eq!(f.collected.capacity(), 0);
+    }
+
+    #[test]
+    fn split_on_crlf_boundary_matches_single_read() {
+        let (mut f, close) = framing();
+        let out = run(&mut f, &[b"GET / HTTP/1.1\r\n", b"host: t\r\n", b"\r\n"]);
+        assert_eq!(out, b"GET / HTTP/1.1\r\nhost: t\r\n\r\n");
+        assert!(!close.close.load(Ordering::Acquire));
+
+        let (mut f2, close2) = framing();
+        let out2 = run(&mut f2, &[b"\r\n", b"GET / HTTP/1.1\r\n\r\n"]);
+        assert_eq!(out2, b"\r\nGET / HTTP/1.1\r\n\r\n");
+        assert!(!close2.close.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn bare_lf_at_first_byte_is_poisoned() {
+        let (mut f, close) = framing();
+        let out = run(&mut f, &[b"\nGET / HTTP/1.1\r\n\r\n"]);
+        assert_eq!(out[0], 0);
+        assert!(close.close.load(Ordering::Acquire));
     }
 }

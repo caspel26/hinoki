@@ -269,7 +269,9 @@ class Database(Resource):
         """Fetch rows pre-encoded to JSON by Rust, or raw rows on fallback."""
         active = self.active()
         target = active.native if active else self.engine
-        return await target.fetch_projected_list(sql, list(params), plan)
+        return await target.fetch_projected_list(
+            sql, params if type(params) is list else list(params), plan
+        )
 
     async def fetch_projected_one(
         self,
@@ -281,7 +283,9 @@ class Database(Resource):
         ``"multiple"`` if >1 row, or raw rows on fallback."""
         active = self.active()
         target = active.native if active else self.engine
-        return await target.fetch_projected_one(sql, list(params), plan)
+        return await target.fetch_projected_one(
+            sql, params if type(params) is list else list(params), plan
+        )
 
     async def fetch_projected_page(
         self,
@@ -300,9 +304,9 @@ class Database(Resource):
         target = active.native if active else self.engine
         return await target.fetch_projected_page(
             rows_sql,
-            list(rows_params),
+            rows_params if type(rows_params) is list else list(rows_params),
             count_sql,
-            list(count_params),
+            count_params if type(count_params) is list else list(count_params),
             plan,
             page,
             page_size,

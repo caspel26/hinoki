@@ -5,7 +5,7 @@ use hinoki_orm::links::{Canon, KeyKind};
 use hinoki_orm::query::{
     compile_select_bound, compile_select_linked, Dialect, Filter, Join, Op, QueryError, Select,
 };
-use hinoki_orm::{PgCell, PgRows, RawRows, RowSet, Value};
+use hinoki_orm::{PgCell, PgRowRef, PgRows, RawRows, RowSet, Value};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
@@ -1467,10 +1467,14 @@ pub(crate) fn group_prefetch_rows_pg(
     if !rows.is_empty() && !rows.columns_match(&prefetch.child_plan.columns) {
         return None;
     }
+    let init_cap = prefetch
+        .child_plan
+        .fixed_row_bytes
+        .saturating_add(prefetch.child_plan.text_columns.len().saturating_mul(32));
     let mut grouped: HashMap<Canon, Vec<u8>> = HashMap::new();
     let mut counts: HashMap<Canon, usize> = HashMap::new();
-    for row_idx in 0..rows.len() {
-        let owner = rows.canon_key(row_idx, prefetch.link_column_index, key_kind)?;
+    for row in rows.iter() {
+        let owner = row.canon_key(prefetch.link_column_index, key_kind)?;
         if let Some(limit) = prefetch.max_items {
             let count = counts.entry(owner.clone()).or_insert(0);
             *count += 1;
@@ -1480,11 +1484,11 @@ pub(crate) fn group_prefetch_rows_pg(
         }
         let buf = grouped
             .entry(owner)
-            .or_insert_with(|| Vec::with_capacity(prefetch.child_plan.fixed_row_bytes));
+            .or_insert_with(|| Vec::with_capacity(init_cap));
         if !buf.is_empty() {
             buf.push(b',');
         }
-        write_pg_row(buf, rows, row_idx, &prefetch.child_plan, &[])?;
+        write_pg_row(buf, row, &prefetch.child_plan, &[])?;
     }
     Some(PrefetchSlot::Multi(grouped))
 }
@@ -1503,33 +1507,37 @@ pub(crate) fn group_prefetch_rows_pg_single(
             return None;
         }
     }
-    let mut buf = Vec::with_capacity(
-        rows.len()
-            .saturating_mul(prefetch.child_plan.fixed_row_bytes),
-    );
-    for row_idx in 0..rows.len() {
-        let row_owner = rows.canon_key(row_idx, prefetch.link_column_index, key_kind)?;
+    let mut buf = Vec::with_capacity(estimate_pg_capacity(rows, &prefetch.child_plan, &[]));
+    for row in rows.iter() {
+        let row_owner = row.canon_key(prefetch.link_column_index, key_kind)?;
         if row_owner != owner {
             return None;
         }
         if !buf.is_empty() {
             buf.push(b',');
         }
-        write_pg_row(&mut buf, rows, row_idx, &prefetch.child_plan, &[])?;
+        write_pg_row(&mut buf, row, &prefetch.child_plan, &[])?;
     }
     Some(PrefetchSlot::Single { owner, items: buf })
 }
 
+fn pg_row_dynamic_bytes(row: PgRowRef<'_>, plan: &RowPlan) -> usize {
+    let text: usize = plan.text_columns.iter().map(|&c| row.text_len(c)).sum();
+    let bin: usize = plan.bytes_columns.iter().map(|&c| row.bytes_len(c)).sum();
+    text.saturating_add(bin)
+}
+
 fn estimate_pg_capacity(rows: &PgRows, plan: &RowPlan, prefetched: &[PrefetchSlot]) -> usize {
-    let per_row = plan
-        .fixed_row_bytes
-        .saturating_add(plan.text_columns.len().saturating_mul(64))
-        .saturating_add(plan.bytes_columns.len().saturating_mul(64));
-    let base = rows.len().saturating_mul(per_row);
-    let pref: usize = prefetched.iter().map(PrefetchSlot::estimated_bytes).sum();
-    base.saturating_add(pref)
-        .saturating_add(64)
-        .min(MAX_INITIAL_CAPACITY)
+    let mut bytes = rows.len().saturating_mul(plan.fixed_row_bytes);
+    if !plan.text_columns.is_empty() || !plan.bytes_columns.is_empty() {
+        for row in rows.iter() {
+            bytes = bytes.saturating_add(pg_row_dynamic_bytes(row, plan));
+        }
+    }
+    for slot in prefetched {
+        bytes = bytes.saturating_add(slot.estimated_bytes());
+    }
+    bytes.saturating_add(64).min(MAX_INITIAL_CAPACITY)
 }
 
 pub(crate) fn encode_list_pg_with(
@@ -1542,11 +1550,11 @@ pub(crate) fn encode_list_pg_with(
     }
     let mut output = Vec::with_capacity(estimate_pg_capacity(rows, plan, prefetched));
     output.push(b'[');
-    for row_idx in 0..rows.len() {
+    for (row_idx, row) in rows.iter().enumerate() {
         if row_idx > 0 {
             output.push(b',');
         }
-        write_pg_row(&mut output, rows, row_idx, plan, prefetched)?;
+        write_pg_row(&mut output, row, plan, prefetched)?;
     }
     output.push(b']');
     Some(output)
@@ -1568,11 +1576,11 @@ pub(crate) fn encode_page_pg_with(
     }
     let mut output = Vec::with_capacity(estimate_pg_capacity(rows, plan, prefetched));
     output.extend_from_slice(b"{\"items\":[");
-    for row_idx in 0..rows.len() {
+    for (row_idx, row) in rows.iter().enumerate() {
         if row_idx > 0 {
             output.push(b',');
         }
-        write_pg_row(&mut output, rows, row_idx, plan, prefetched)?;
+        write_pg_row(&mut output, row, plan, prefetched)?;
     }
     write_page_trailer(&mut output, page, page_size, total)?;
     Some(output)
@@ -1586,21 +1594,19 @@ pub(crate) fn encode_item_pg_with(
     if rows.len() != 1 || !rows.columns_match(&plan.columns) {
         return None;
     }
+    let row = rows.row(0)?;
     let mut output = Vec::with_capacity(estimate_pg_capacity(rows, plan, prefetched));
-    write_pg_row(&mut output, rows, 0, plan, prefetched)?;
+    write_pg_row(&mut output, row, plan, prefetched)?;
     Some(output)
 }
 
 fn write_pg_row(
     output: &mut Vec<u8>,
-    rows: &PgRows,
-    row_idx: usize,
+    row: PgRowRef<'_>,
     plan: &RowPlan,
     prefetched: &[PrefetchSlot],
 ) -> Option<()> {
-    if rows.column_count() != plan.columns.len() {
-        return None;
-    }
+    let mut cached_key: Option<Canon> = None;
     output.push(b'{');
     for (index, field) in plan.fields.iter().enumerate() {
         if index > 0 {
@@ -1609,19 +1615,18 @@ fn write_pg_row(
         output.extend_from_slice(&field.quoted_key);
         match field.kind {
             Kind::Ids => return None,
-            Kind::Nested => write_pg_nested(
-                output,
-                rows,
-                row_idx,
-                plan.nested.get(field.slot)?,
-                field.nullable,
-            )?,
+            Kind::Nested => {
+                write_pg_nested(output, row, plan.nested.get(field.slot)?, field.nullable)?
+            }
             Kind::Prefetch => {
                 let slot = prefetched.get(field.slot)?;
-                let key = rows.canon_key(row_idx, plan.key_index?, plan.key_kind)?;
-                write_prefetch(output, slot.get(&key));
+                let key = match &cached_key {
+                    Some(k) => k,
+                    None => cached_key.insert(row.canon_key(plan.key_index?, plan.key_kind)?),
+                };
+                write_prefetch(output, slot.get(key));
             }
-            _ => write_pg_cell(output, rows.cell(row_idx, field.column_index)?, field)?,
+            _ => write_pg_cell(output, row.cell(field.column_index)?, field)?,
         }
     }
     output.push(b'}');
@@ -1630,13 +1635,12 @@ fn write_pg_row(
 
 fn write_pg_nested(
     output: &mut Vec<u8>,
-    rows: &PgRows,
-    row_idx: usize,
+    row: PgRowRef<'_>,
     nested: &NestedPlan,
     nullable: bool,
 ) -> Option<()> {
-    if matches!(rows.cell(row_idx, nested.key_column_index)?, PgCell::Null) {
-        if !nullable || !matches!(rows.cell(row_idx, nested.fk_column_index)?, PgCell::Null) {
+    if matches!(row.cell(nested.key_column_index)?, PgCell::Null) {
+        if !nullable || !matches!(row.cell(nested.fk_column_index)?, PgCell::Null) {
             return None;
         }
         output.extend_from_slice(b"null");
@@ -1648,7 +1652,7 @@ fn write_pg_nested(
             output.push(b',');
         }
         output.extend_from_slice(&field.quoted_key);
-        write_pg_cell(output, rows.cell(row_idx, field.column_index)?, field)?;
+        write_pg_cell(output, row.cell(field.column_index)?, field)?;
     }
     output.push(b'}');
     Some(())

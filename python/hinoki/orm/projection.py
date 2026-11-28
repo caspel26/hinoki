@@ -784,8 +784,10 @@ def _build_projection_plan(
 
 
 _STOCK_FROM_ROW = getattr(Model.from_row, "__func__", None)
+_STOCK_FROM_ROW_DESC = Model.__dict__["from_row"]
 _STOCK_SCHEMA_DUMP = Schema.dump
 _STOCK_SCHEMA_FROM_MODEL = getattr(Schema.from_model, "__func__", None)
+_STOCK_SCHEMA_FROM_MODEL_DESC = Schema.__dict__["from_model"]
 
 
 def _schema_hooks_stock(schema: type[Schema]) -> bool:
@@ -795,6 +797,51 @@ def _schema_hooks_stock(schema: type[Schema]) -> bool:
         and not schema.__checks__
         and not schema.__normalizers__
         and not schema.__computed_specs__
+    )
+
+
+def _schema_cls_stock(schema: type[Schema]) -> bool:
+    if schema.__checks__ or schema.__normalizers__ or schema.__computed_specs__:
+        return False
+    if schema.__bases__ == (Schema,):
+        mapping = schema.__dict__
+        return "dump" not in mapping and "from_model" not in mapping
+    for cls in schema.__mro__:
+        if cls is Schema or cls is object:
+            break
+        mapping = cls.__dict__
+        if "dump" in mapping or "from_model" in mapping:
+            return False
+    return True
+
+
+def _model_cls_stock(model: type[Model]) -> bool:
+    if model.__bases__ == (Model,):
+        return "from_row" not in model.__dict__
+    for cls in model.__mro__:
+        if cls is Model or cls is object:
+            return True
+        if "from_row" in cls.__dict__:
+            return False
+    return True
+
+
+def _stock_hooks_intact(
+    schema: type[Schema],
+    model: type[Model],
+    guard_schemas: tuple[type[Schema], ...],
+    guard_models: tuple[type[Model], ...],
+) -> bool:
+    if (
+        Schema.__dict__["dump"] is not _STOCK_SCHEMA_DUMP
+        or Schema.__dict__["from_model"] is not _STOCK_SCHEMA_FROM_MODEL_DESC
+        or Model.__dict__["from_row"] is not _STOCK_FROM_ROW_DESC
+    ):
+        return False
+    if not _schema_cls_stock(schema) or not _model_cls_stock(model):
+        return False
+    return all(_schema_cls_stock(s) for s in guard_schemas) and all(
+        _model_cls_stock(m) for m in guard_models
     )
 
 
@@ -857,16 +904,29 @@ def _prefetch_target_model(query: QuerySet[Any], name: str) -> type[Model] | Non
     return None
 
 
+def _plan_cache_hit(
+    entry: _PlanEntry,
+    model: type[Model],
+    schema: type[Schema],
+) -> tuple[bool, core._RowPlan | None]:
+    plan, guard_schemas, guard_models, was_stock = entry
+    if was_stock:
+        if _stock_hooks_intact(schema, model, guard_schemas, guard_models):
+            return True, plan
+        return False, None
+    if getattr(model.from_row, "__func__", None) is _STOCK_FROM_ROW and not (
+        _all_hooks_stock(schema, guard_schemas, guard_models)
+    ):
+        return True, plan
+    return False, None
+
+
 def compile_projection_plan(
     query: QuerySet[Any], schema: type[Schema], dialect: str = "sqlite"
 ) -> core._RowPlan | None:
     """Build or fetch a cached Rust ``_RowPlan`` for ``(query, schema)``, or
     ``None`` to fall back to normal Python model hydration."""
-    if (
-        not query.uses_stock_builders()
-        or query.loading.scoped
-        or getattr(query.model.from_row, "__func__", None) is not _STOCK_FROM_ROW
-    ):
+    if not query.uses_stock_builders() or query.loading.scoped:
         return None
     selected = query.loading.selected
     prefetched = query.loading.prefetched
@@ -879,9 +939,11 @@ def compile_projection_plan(
     )
     entry = _PLAN_FAST_CACHE.get(fast_key)
     if entry is not None:
-        plan, guard_schemas, guard_models, was_stock = entry
-        if _all_hooks_stock(schema, guard_schemas, guard_models) == was_stock:
-            return plan
+        hit, cached_plan = _plan_cache_hit(entry, query.model, schema)
+        if hit:
+            return cached_plan
+    if getattr(query.model.from_row, "__func__", None) is not _STOCK_FROM_ROW:
+        return None
     guard_schemas, guard_models = _plan_guards(query, schema)
     was_stock = _all_hooks_stock(schema, guard_schemas, guard_models)
     plan = _build_projection_plan(query, schema, dialect) if was_stock else None
@@ -983,14 +1045,14 @@ def compile_model_projection_plan(
 ) -> core._RowPlan | None:
     """Build or fetch a cached Rust ``_RowPlan`` for a plain ``(model, schema)``
     lookup without allocating an intermediate ``QuerySet`` on cache hits."""
-    if getattr(model.from_row, "__func__", None) is not _STOCK_FROM_ROW:
-        return None
     fast_key: _PlanFastKey = (id(schema), id(model), (), (), dialect)
     entry = _PLAN_FAST_CACHE.get(fast_key)
     if entry is not None:
-        plan, guard_schemas, guard_models, was_stock = entry
-        if _all_hooks_stock(schema, guard_schemas, guard_models) == was_stock:
-            return plan
+        hit, cached_plan = _plan_cache_hit(entry, model, schema)
+        if hit:
+            return cached_plan
+    if getattr(model.from_row, "__func__", None) is not _STOCK_FROM_ROW:
+        return None
     return compile_projection_plan(QuerySet(model), schema, dialect)
 
 
@@ -1075,7 +1137,7 @@ async def project_one[S: Schema](
             if compiled is not None
             else query.limit(2).compile(dialect=database.dialect)
         )
-        result = await fetch_one(sql, list(params), plan)
+        result = await fetch_one(sql, params, plan)
         if result is None:
             if allow_none:
                 return None
