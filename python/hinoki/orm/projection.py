@@ -8,7 +8,6 @@ import inspect
 import types
 import weakref
 from collections.abc import Callable, Iterable, Iterator
-from types import MappingProxyType
 from typing import Any, SupportsIndex, cast, overload
 
 from hinoki import core
@@ -33,8 +32,6 @@ type _PlanEntry = tuple[
     tuple[type[Schema], ...],
     tuple[type[Model], ...],
     bool,
-    tuple[MappingProxyType[str, Any], ...],
-    tuple[MappingProxyType[str, Any], ...],
 ]
 _PLAN_CACHE: weakref.WeakKeyDictionary[
     type[Schema],
@@ -803,24 +800,37 @@ def _schema_hooks_stock(schema: type[Schema]) -> bool:
     )
 
 
-def _subclass_dicts(
-    classes: tuple[type[Any], ...], root: type[Any]
-) -> tuple[MappingProxyType[str, Any], ...]:
-    seen: list[MappingProxyType[str, Any]] = []
-    for target in classes:
-        for cls in target.__mro__:
-            if cls is root or cls is object:
-                break
-            mapping = cls.__dict__
-            if mapping not in seen:
-                seen.append(mapping)
-    return tuple(seen)
+def _schema_cls_stock(schema: type[Schema]) -> bool:
+    if schema.__checks__ or schema.__normalizers__ or schema.__computed_specs__:
+        return False
+    if schema.__bases__ == (Schema,):
+        mapping = schema.__dict__
+        return "dump" not in mapping and "from_model" not in mapping
+    for cls in schema.__mro__:
+        if cls is Schema or cls is object:
+            break
+        mapping = cls.__dict__
+        if "dump" in mapping or "from_model" in mapping:
+            return False
+    return True
+
+
+def _model_cls_stock(model: type[Model]) -> bool:
+    if model.__bases__ == (Model,):
+        return "from_row" not in model.__dict__
+    for cls in model.__mro__:
+        if cls is Model or cls is object:
+            return True
+        if "from_row" in cls.__dict__:
+            return False
+    return True
 
 
 def _stock_hooks_intact(
-    schemas: tuple[type[Schema], ...],
-    schema_dicts: tuple[MappingProxyType[str, Any], ...],
-    model_dicts: tuple[MappingProxyType[str, Any], ...],
+    schema: type[Schema],
+    model: type[Model],
+    guard_schemas: tuple[type[Schema], ...],
+    guard_models: tuple[type[Model], ...],
 ) -> bool:
     if (
         Schema.__dict__["dump"] is not _STOCK_SCHEMA_DUMP
@@ -828,13 +838,11 @@ def _stock_hooks_intact(
         or Model.__dict__["from_row"] is not _STOCK_FROM_ROW_DESC
     ):
         return False
-    for s in schemas:
-        if s.__checks__ or s.__normalizers__ or s.__computed_specs__:
-            return False
-    for mapping in schema_dicts:
-        if "dump" in mapping or "from_model" in mapping:
-            return False
-    return all("from_row" not in mapping for mapping in model_dicts)
+    if not _schema_cls_stock(schema) or not _model_cls_stock(model):
+        return False
+    return all(_schema_cls_stock(s) for s in guard_schemas) and all(
+        _model_cls_stock(m) for m in guard_models
+    )
 
 
 def _schema_guards(schema: type[Schema]) -> tuple[type[Schema], ...]:
@@ -901,9 +909,9 @@ def _plan_cache_hit(
     model: type[Model],
     schema: type[Schema],
 ) -> tuple[bool, core._RowPlan | None]:
-    plan, guard_schemas, guard_models, was_stock, schema_dicts, model_dicts = entry
+    plan, guard_schemas, guard_models, was_stock = entry
     if was_stock:
-        if _stock_hooks_intact(guard_schemas, schema_dicts, model_dicts):
+        if _stock_hooks_intact(schema, model, guard_schemas, guard_models):
             return True, plan
         return False, None
     if getattr(model.from_row, "__func__", None) is _STOCK_FROM_ROW and not (
@@ -939,25 +947,13 @@ def compile_projection_plan(
     guard_schemas, guard_models = _plan_guards(query, schema)
     was_stock = _all_hooks_stock(schema, guard_schemas, guard_models)
     plan = _build_projection_plan(query, schema, dialect) if was_stock else None
-    all_schemas = (schema, *guard_schemas)
-    schema_dicts = _subclass_dicts(all_schemas, Schema) if was_stock else ()
-    model_dicts = (
-        _subclass_dicts((query.model, *guard_models), Model) if was_stock else ()
-    )
     cache_key: _PlanKey = (selected, prefetched, dialect)
     _plan_cache_put(
         schema,
         query.model,
         cache_key,
         fast_key,
-        (
-            plan,
-            all_schemas if was_stock else guard_schemas,
-            guard_models,
-            was_stock,
-            schema_dicts,
-            model_dicts,
-        ),
+        (plan, guard_schemas, guard_models, was_stock),
     )
     return plan
 
