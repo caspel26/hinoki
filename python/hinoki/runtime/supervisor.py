@@ -130,7 +130,6 @@ class Supervisor:
             *self.listener_arguments(),
             "--parent",
             str(os.getpid()),
-            *(["--inline-dispatch"] if self.count > 1 else []),
             *(["--interface", self.interface] if self.interface != "asgi" else []),
             *(["--dev"] if self.reload else []),
             *(["--ready-fd", str(ready_fd)] if ready_fd is not None else []),

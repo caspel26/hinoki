@@ -1518,13 +1518,13 @@ async def test_inline_dispatch_serves_direct_suspending_head_and_errors() -> Non
     assert boom.json()["request_id"] == boom.header("x-request-id")
 
 
-def test_supervisor_enables_inline_dispatch_only_for_multiple_workers() -> None:
+def test_supervisor_does_not_enable_inline_dispatch_by_default() -> None:
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         single = Supervisor("app:app", listener, 1, 5.0)
         multi = Supervisor("app:app", listener, 4, 5.0)
         assert "--inline-dispatch" not in single.command()
-        assert "--inline-dispatch" in multi.command()
+        assert "--inline-dispatch" not in multi.command()
 
 
 @pytest.mark.parametrize("query", ["x=%FF", "&".join(["x=1"] * 1001)])
