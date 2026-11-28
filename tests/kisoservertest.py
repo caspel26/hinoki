@@ -55,6 +55,7 @@ from hinoki.renderers import is_native_renderer
 from hinoki.runtime import kiso, responses
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.servercore import build_server_core
+from hinoki.runtime.supervisor import Supervisor
 from hinoki.settings import AppSettings, CorsSettings, FrameOptions, SecuritySettings
 from tests.harness import Client
 from tests.providers import TokenAuth
@@ -1472,6 +1473,58 @@ async def test_native_handler_negotiates_accept_before_calling_handler() -> None
     assert received.status == 406
     assert received.json()["error"] == "not_acceptable"
     assert received.json()["request_id"] == received.header("x-request-id")
+
+
+async def test_inline_dispatch_serves_direct_suspending_head_and_errors() -> None:
+    @http.get("/inline-fast")
+    async def inline_fast() -> dict[str, int]:
+        return {"ok": 1}
+
+    @http.get("/inline-suspend")
+    async def inline_suspend() -> dict[str, str]:
+        await asyncio.sleep(0)
+        return {"mode": "suspended"}
+
+    @http.get("/inline-boom")
+    async def inline_boom() -> dict[str, str]:
+        raise RuntimeError("boom")
+
+    app = Hinoki(include=[inline_fast, inline_suspend, inline_boom])
+    worker = KisoWorker(app, "127.0.0.1", 0, inline_dispatch=True)
+    port = await worker.start()
+    try:
+        fast = await fetch(port, "GET", "/inline-fast")
+        head = await fetch(port, "HEAD", "/inline-fast")
+        suspended = await fetch(port, "GET", "/inline-suspend")
+        boom = await fetch(port, "GET", "/inline-boom")
+    finally:
+        await worker.stop()
+
+    assert fast.status == 200
+    assert fast.header("content-type") == "application/json"
+    assert fast.header("content-length") == str(len(fast.body))
+    assert fast.header("x-request-id")
+    assert fast.json() == {"ok": 1}
+
+    assert head.status == 200
+    assert head.body == b""
+    assert head.header("content-length") == str(len(fast.body))
+
+    assert suspended.status == 200
+    assert suspended.json() == {"mode": "suspended"}
+
+    assert boom.status == 500
+    assert boom.json()["error"] == "internal_error"
+    assert boom.json()["request_id"] == boom.header("x-request-id")
+
+
+def test_supervisor_enables_inline_dispatch_only_for_multiple_workers() -> None:
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        single = Supervisor("app:app", listener, 1, 5.0)
+        multi = Supervisor("app:app", listener, 4, 5.0)
+        assert "--inline-dispatch" not in single.command()
+        assert "--inline-dispatch" in multi.command()
 
 
 @pytest.mark.parametrize("query", ["x=%FF", "&".join(["x=1"] * 1001)])

@@ -207,6 +207,7 @@ class KisoWorker:
         compression: dict[str, object] | None = None,
         metrics: dict[str, object] | None = None,
         ready_fd: int | None = None,
+        inline_dispatch: bool = False,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -242,6 +243,9 @@ class KisoWorker:
         self.parent = parent
         # Where a supervisor that replaces workers waits for this one to serve.
         self.ready_fd = ready_fd
+        # Inline direct-lane dispatch avoids Tokio<->asyncio wakeup ping-pong
+        # under multi-worker saturation while keeping 2-thread pipelining on 1w.
+        self.inline_dispatch = inline_dispatch
         self.timer: asyncio.TimerHandle | None = None
         # Starts not ready; the lifespan startup flips it.
         self.core = build_server_core(self.pipeline)
@@ -287,6 +291,8 @@ class KisoWorker:
         try:
             self._activate_crud_plans()
             self.lane = self._select_lane()
+            if self.inline_dispatch and self.lane is not None and self.lane.direct:
+                self.core._set_inline_lane(self.lane, sorted(self.lane.direct))
             if self.listener_fd is None:
                 # Bound only now, after the startup succeeded: a failed startup
                 # leaves nothing listening.
@@ -823,6 +829,7 @@ class KisoWorker:
             aborted = await server.shutdown()
         finally:
             self.core.set_ready(False)
+            self.core._clear_inline_lane()
             asyncio.get_running_loop().remove_reader(server.wake_fd)
             try:
                 native_aborted, drain_interrupted = await _drain_native_uninterruptibly(
@@ -940,6 +947,7 @@ def build_worker(  # noqa: PLR0913 - the supervisor's descriptors and the metric
     metrics_dir: str | None = None,
     slot: int = 0,
     ready_fd: int | None = None,
+    inline_dispatch: bool = False,
 ) -> KisoWorker:
     """A worker for ``app`` with the limits of its ``server`` settings group
     (``None`` keeps the native default). ``metrics_fd``, ``metrics_dir`` and
@@ -963,6 +971,7 @@ def build_worker(  # noqa: PLR0913 - the supervisor's descriptors and the metric
         reuse_port=reuse_port,
         parent=parent,
         ready_fd=ready_fd,
+        inline_dispatch=inline_dispatch,
         access_log=access_style(settings, dev),
         access_log_skip=settings.access_log_skip,
         access_log_slow_ms=settings.access_log_slow_ms,
@@ -1031,6 +1040,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--fd", type=int, help="an inherited listening socket (host and port ignored)"
     )
     parser.add_argument("--reuse-port", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--inline-dispatch", action="store_true", help=argparse.SUPPRESS
+    )
     parser.add_argument("--parent", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--metrics-fd", type=int, help=argparse.SUPPRESS)
@@ -1078,6 +1090,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         metrics_dir=args.metrics_dir,
         slot=args.slot,
         ready_fd=args.ready_fd,
+        inline_dispatch=args.inline_dispatch,
     )
     return asyncio.run(worker.run())
 

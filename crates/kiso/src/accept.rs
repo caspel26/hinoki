@@ -211,6 +211,7 @@ async fn serve_h1<S, B>(
         // A client that shuts down its write side after a request still gets
         // the answer (`nc`, some health checkers).
         .half_close(true)
+        .writev(true)
         .max_buf_size(head_limit)
         // The guard refuses the same bound, so both agree on what a head is.
         .max_header_size(head_limit)

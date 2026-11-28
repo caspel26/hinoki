@@ -114,12 +114,14 @@ pub struct PreparedRequest {
     pub(super) native_error: Option<NativeInputError>,
     pub(super) native_principal: Option<super::core::NativePrincipal>,
     pub(super) native_policy: Arc<[Header]>,
+    pub(super) compiled_policy: Option<Arc<[kiso::headers::CompiledHeader]>>,
     /// The CORS headers for the request's `Origin`, added to a native handler's
     /// answer unless it sets its own `access-control-allow-origin`.
     pub(super) native_cors: Vec<Header>,
     pub(super) route_headers: Vec<(String, String)>,
     pub(super) native_crud: bool,
     pub(super) request_id_name: Arc<[u8]>,
+    pub(super) compiled_id_name: Option<kiso::headers::HeaderName>,
     pub(super) needs_headers: bool,
     pub(super) params: Vec<(String, String)>,
     pub(super) prepared_path_params: Option<PreparedPathParams>,
@@ -688,6 +690,11 @@ impl PreparedRequest {
         } else {
             crate::request::encode_json_bytes(value)?
         };
+        if headers.is_none() && (self.native_handler || self.native_crud) {
+            if let Some(sent) = self.finish_fast_json(status, body.clone()) {
+                return Ok(sent);
+            }
+        }
         let own = headers
             .unwrap_or_else(|| vec![(b"content-type".to_vec(), b"application/json".to_vec())]);
         Ok(self.respond_final_owned(status, own, body))
@@ -791,6 +798,37 @@ impl PreparedRequest {
         self.reply.lock().ok().and_then(|mut slot| slot.take())
     }
 
+    fn finish_fast_json(&self, status: u16, body: bytes::Bytes) -> Option<bool> {
+        if !self.native_cors.is_empty() || !self.route_headers.is_empty() {
+            return None;
+        }
+        let policy = self.compiled_policy.as_deref()?;
+        let id_name = self.compiled_id_name.as_ref()?;
+        let headers = kiso::headers::final_json_header_map(
+            policy,
+            id_name,
+            self.request_id.as_bytes(),
+            status,
+            body.len(),
+        )?;
+        let final_body = if self.method == "HEAD" {
+            bytes::Bytes::new()
+        } else {
+            body
+        };
+        let sender = self.release();
+        Some(sender.is_some_and(|tx| {
+            handoff::reply(
+                tx,
+                Sent::Fast(Box::new(kiso::FastAnswer {
+                    status,
+                    headers,
+                    body: final_body,
+                })),
+            )
+        }))
+    }
+
     fn finish(
         &self,
         status: u16,
@@ -798,6 +836,16 @@ impl PreparedRequest {
         body: bytes::Bytes,
         route_headers: &[(String, String)],
     ) -> bool {
+        if route_headers.is_empty()
+            && self.native_cors.is_empty()
+            && own.len() == 1
+            && own[0].0.eq_ignore_ascii_case(b"content-type")
+            && own[0].1 == b"application/json"
+        {
+            if let Some(sent) = self.finish_fast_json(status, body.clone()) {
+                return sent;
+            }
+        }
         let body_len = body.len();
         let cors = self.cors_for(&own, route_headers);
         let final_headers = final_headers(

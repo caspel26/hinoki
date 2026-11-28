@@ -115,8 +115,19 @@ type _SelectSqlKey = tuple[
 _SELECT_SQL_CACHE: weakref.WeakKeyDictionary[
     type[Model], OrderedDict[_SelectSqlKey, str]
 ] = weakref.WeakKeyDictionary()
+_SIMPLE_GET_SQL_CACHE: weakref.WeakKeyDictionary[
+    type[Model], dict[tuple[tuple[str, ...], str], str]
+] = weakref.WeakKeyDictionary()
 
-_PROJECTION_HOOKS: list[Any] = []
+_PROJECTION_HOOKS: list[
+    tuple[
+        Callable[..., Any],
+        Callable[..., Any],
+        Callable[..., Any],
+        Callable[..., Any],
+        object,
+    ]
+] = []
 
 
 def _projection_hooks() -> tuple[
@@ -136,7 +147,7 @@ def _projection_hooks() -> tuple[
             project_one,
         )
 
-        _PROJECTION_HOOKS.extend(
+        _PROJECTION_HOOKS.append(
             (
                 project_list,
                 project_one,
@@ -145,13 +156,7 @@ def _projection_hooks() -> tuple[
                 _MODEL_GET_FALLBACK,
             )
         )
-    return (
-        _PROJECTION_HOOKS[0],
-        _PROJECTION_HOOKS[1],
-        _PROJECTION_HOOKS[2],
-        _PROJECTION_HOOKS[3],
-        _PROJECTION_HOOKS[4],
-    )
+    return _PROJECTION_HOOKS[0]
 
 
 def _valid_bound_int(value: int | None) -> bool:
@@ -180,7 +185,7 @@ def _select_cache_get(model: type[Model], key: _SelectSqlKey) -> str | None:
     if bucket is None:
         return None
     sql = bucket.get(key)
-    if sql is not None:
+    if sql is not None and len(bucket) >= _SELECT_SQL_CACHE_MAX:
         bucket.move_to_end(key)
     return sql
 
@@ -191,7 +196,6 @@ def _select_cache_put(model: type[Model], key: _SelectSqlKey, sql: str) -> None:
         bucket = OrderedDict()
         _SELECT_SQL_CACHE[model] = bucket
     bucket[key] = sql
-    bucket.move_to_end(key)
     if len(bucket) > _SELECT_SQL_CACHE_MAX:
         bucket.popitem(last=False)
 
@@ -218,6 +222,12 @@ def compile_simple_get_sql(
 ) -> str:
     """Compile or return a cached ``SELECT ... WHERE ... LIMIT ?`` template for
     simple equality lookups on ``model``."""
+    fast_bucket = _SIMPLE_GET_SQL_CACHE.get(model)
+    fast_key = (filter_columns, dialect)
+    if fast_bucket is not None:
+        hit = fast_bucket.get(fast_key)
+        if hit is not None and model in _SELECT_SQL_CACHE:
+            return hit
     soft_col = model.__soft_delete__
     sig_items: list[tuple[str, str, int]] = (
         [(soft_col, "isnull", 0)] if soft_col is not None else []
@@ -226,26 +236,30 @@ def compile_simple_get_sql(
     sig = tuple(sig_items)
     order = tuple((n.removeprefix("-"), n.startswith("-")) for n in model.__ordering__)
     key: _SelectSqlKey = ("select", dialect, sig, order, True, False, (), ())
-    cached = _select_cache_get(model, key)
-    if cached is not None:
-        return cached
-    filters: list[tuple[str, str, list[Any]]] = [
-        (col, op, [None] if arity else []) for col, op, arity in sig
-    ]
-    refuse_sqlite_decimal(model, filters, order, dialect)
-    sql, _ = core.compile_query(
-        "select",
-        model.__table__,
-        columns=list(model.__columns__),
-        filters=filters,
-        order=list(order),
-        limit=2,
-        offset=None,
-        joins=[],
-        keyset=None,
-        dialect=dialect,
-    )
-    _select_cache_put(model, key, sql)
+    sql = _select_cache_get(model, key)
+    if sql is None:
+        filters: list[tuple[str, str, list[Any]]] = [
+            (col, op, [None] if arity else []) for col, op, arity in sig
+        ]
+        refuse_sqlite_decimal(model, filters, order, dialect)
+        sql, _ = core.compile_query(
+            "select",
+            model.__table__,
+            columns=list(model.__columns__),
+            filters=filters,
+            order=list(order),
+            limit=2,
+            offset=None,
+            joins=[],
+            keyset=None,
+            dialect=dialect,
+        )
+        _select_cache_put(model, key, sql)
+    if fast_bucket is None:
+        fast_bucket = {}
+        _SIMPLE_GET_SQL_CACHE[model] = fast_bucket
+    if len(fast_bucket) < _SELECT_SQL_CACHE_MAX:
+        fast_bucket[fast_key] = sql
     return sql
 
 
@@ -481,6 +495,7 @@ class QuerySet[M: Model]:
         dialect: str,
         limit_to: int | None,
         offset_by: int | None,
+        order: tuple[tuple[str, bool], ...] | None = None,
     ) -> tuple[str, list[Any]] | None:
         if (
             kind not in ("select", "count")
@@ -491,12 +506,13 @@ class QuerySet[M: Model]:
         sig = _filter_signature(self.filters)
         if sig is None:
             return None
+        resolved_order = self.order if order is None else order
         selected = () if kind == "count" else self.loading.selected
         key: _SelectSqlKey = (
             kind,
             dialect,
             sig,
-            self.order,
+            resolved_order,
             limit_to is not None,
             offset_by is not None,
             selected,
@@ -505,13 +521,13 @@ class QuerySet[M: Model]:
         cached = _select_cache_get(self.model, key)
         if cached is not None:
             return cached, _collect_select_params(self.filters, limit_to, offset_by)
-        refuse_sqlite_decimal(self.model, self.filters, self.order, dialect)
+        refuse_sqlite_decimal(self.model, self.filters, resolved_order, dialect)
         sql, params = core.compile_query(
             kind,
             self.model.__table__,
             columns=list(self.model.__columns__),
             filters=list(self.filters),
-            order=list(self.order),
+            order=list(resolved_order),
             limit=limit_to,
             offset=offset_by,
             joins=self.joins(counting=kind == "count"),
@@ -645,9 +661,15 @@ class QuerySet[M: Model]:
     def uses_stock_builders(self) -> bool:
         """False when ``build`` or ``_hydrate`` was overridden or patched: the
         native row builder would silently skip that code."""
-        return all(
-            getattr(getattr(self, name), "__func__", None) is getattr(QuerySet, name)
-            for name in ("build", "_hydrate")
+        cls = type(self)
+        if cls is QuerySet:
+            return (
+                QuerySet.build is _STOCK_QS_BUILD
+                and QuerySet._hydrate is _STOCK_QS_HYDRATE
+            )
+        return (
+            getattr(self.build, "__func__", None) is _STOCK_QS_BUILD
+            and getattr(self._hydrate, "__func__", None) is _STOCK_QS_HYDRATE
         )
 
     def joined_plan(self, plan: core._ModelRows) -> core._ModelRows | None:
@@ -1129,6 +1151,9 @@ ROW_WIRE_METHODS = (
 )
 ROW_WIRE_METHODS_ORIGINAL = tuple(getattr(QuerySet, name) for name in ROW_WIRE_METHODS)
 
+
+_STOCK_QS_BUILD: Any = QuerySet.build
+_STOCK_QS_HYDRATE: Any = QuerySet._hydrate
 
 TEXT_DECIMAL_OPERATORS = frozenset({"eq", "ne", "in", "isnull", "notnull"})
 

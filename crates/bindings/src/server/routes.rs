@@ -65,6 +65,13 @@ pub(crate) enum Outcome {
         receiver: oneshot::Receiver<Sent>,
         asked: Asked,
     },
+    /// Dispatched inline to `NativeLane.start` on the Tokio thread to avoid
+    /// socketpair / epoll_wait ping-pong for direct native-lane routes.
+    Inline {
+        request: Box<PreparedRequest>,
+        receiver: oneshot::Receiver<Sent>,
+        asked: Asked,
+    },
     /// Eligible read request whose database work runs on the Rust worker.
     NativeCrud {
         request: Box<PreparedRequest>,
@@ -339,14 +346,6 @@ impl Core {
         if !input.enabled || reported_first || request::parse_query(head.query, 1000).is_err() {
             return None;
         }
-        let mut credentials = head
-            .headers
-            .iter()
-            .filter(|(name, _)| name.eq_ignore_ascii_case(b"authorization"));
-        let first = credentials.next();
-        if credentials.next().is_some() {
-            return None;
-        }
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(0));
@@ -357,10 +356,7 @@ impl Core {
                 .map(|value| (b"www-authenticate".to_vec(), value.clone()))
                 .collect()
         };
-        let refusal = match route
-            .auth
-            .admit(first.map(|(_, value)| value.as_slice()), now)
-        {
+        let refusal = match route.auth.admit_headers(&head.headers, now) {
             Admission::Admit {
                 subject,
                 scopes,
@@ -589,7 +585,9 @@ impl Core {
         let native_crud = route_plan
             .and_then(|route| route.crud_plan.as_ref())
             .is_some_and(|slot| slot.is_armed());
-        let native_policy = Arc::clone(&self.policies[usize::from(asked.https)]);
+        let https_idx = usize::from(asked.https);
+        let native_policy = Arc::clone(&self.policies[https_idx]);
+        let compiled_policy = self.compiled_policies[https_idx].clone();
         let native_cors = self.cors_headers(&asked);
         let route_headers = if native_crud {
             route_plan.map_or_else(Vec::new, |route| route.headers.clone())
@@ -609,10 +607,12 @@ impl Core {
             native_error: native_input.error,
             native_principal: native_input.principal,
             native_policy,
+            compiled_policy,
             native_cors,
             route_headers,
             native_crud,
             request_id_name: Arc::clone(&self.id_name),
+            compiled_id_name: self.compiled_id_name.clone(),
             needs_headers,
             params,
             prepared_path_params,
@@ -659,6 +659,17 @@ impl Core {
                     query: head.query.to_vec(),
                 });
             }
+        }
+        if native_execution
+            && request.native_handler
+            && request.native_error.is_none()
+            && action.is_some_and(|n| self.is_inline_action(n))
+        {
+            return Ok(Outcome::Inline {
+                request: Box::new(request),
+                receiver,
+                asked,
+            });
         }
         match self.queue.push_cold_path(request) {
             Ok(pushed) => Ok(Outcome::Queued {

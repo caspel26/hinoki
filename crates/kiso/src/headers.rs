@@ -1,6 +1,11 @@
 //! The final header list of an answer, in the order the Python runtime builds
 //! it (`core.response_headers`, then `content-length`).
 
+use hyper::header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
+use hyper::HeaderMap;
+
+pub use hyper::header::HeaderName;
+
 /// Header names the framework's security policy owns (lowercase). Mirrors
 /// `hinoki.runtime.security.POLICY_HEADERS`.
 pub const POLICY_NAMES: [&[u8]; 4] = [
@@ -11,6 +16,9 @@ pub const POLICY_NAMES: [&[u8]; 4] = [
 ];
 
 pub type Header = (Vec<u8>, Vec<u8>);
+pub type CompiledHeader = (HeaderName, HeaderValue);
+
+static APPLICATION_JSON: HeaderValue = HeaderValue::from_static("application/json");
 
 pub fn is_policy(lower: &[u8]) -> bool {
     POLICY_NAMES.contains(&lower)
@@ -21,8 +29,7 @@ pub const fn is_bodyless(status: u16) -> bool {
     status == 204 || status == 304
 }
 
-fn usize_bytes(mut value: usize) -> Vec<u8> {
-    let mut digits = [0u8; 20];
+fn format_usize(mut value: usize, digits: &mut [u8; 20]) -> &[u8] {
     let mut at = digits.len();
     loop {
         at -= 1;
@@ -32,7 +39,51 @@ fn usize_bytes(mut value: usize) -> Vec<u8> {
             break;
         }
     }
-    digits[at..].to_vec()
+    &digits[at..]
+}
+
+fn usize_bytes(value: usize) -> Vec<u8> {
+    let mut digits = [0u8; 20];
+    format_usize(value, &mut digits).to_vec()
+}
+
+/// Pre-compile static headers once at startup so hot responses skip validation
+/// and `Vec<u8>` allocations per request.
+pub fn compile_headers(raw: &[Header]) -> Option<Vec<CompiledHeader>> {
+    raw.iter()
+        .map(|(name, value)| {
+            Some((
+                HeaderName::from_bytes(name).ok()?,
+                HeaderValue::from_bytes(value).ok()?,
+            ))
+        })
+        .collect()
+}
+
+/// Build the final `HeaderMap` directly for a JSON response without route or
+/// CORS headers, avoiding intermediate `Vec<(Vec<u8>, Vec<u8>)>` allocations
+/// and repeated header parsing.
+pub fn final_json_header_map(
+    policy: &[CompiledHeader],
+    request_id_name: &HeaderName,
+    request_id: &[u8],
+    status: u16,
+    body_len: usize,
+) -> Option<HeaderMap> {
+    let id_value = HeaderValue::from_bytes(request_id).ok()?;
+    let extra = usize::from(!is_bodyless(status));
+    let mut map = HeaderMap::with_capacity(policy.len() + 2 + extra);
+    map.append(CONTENT_TYPE, APPLICATION_JSON.clone());
+    for (name, value) in policy {
+        map.append(name.clone(), value.clone());
+    }
+    map.append(request_id_name.clone(), id_value);
+    if !is_bodyless(status) {
+        let mut digits = [0u8; 20];
+        let len_value = HeaderValue::from_bytes(format_usize(body_len, &mut digits)).ok()?;
+        map.append(CONTENT_LENGTH, len_value);
+    }
+    Some(map)
 }
 
 /// The answer's own headers without policy headers and the request id, then the
@@ -272,5 +323,24 @@ mod tests {
                 h("x-request-id", "i"),
             ]
         );
+    }
+
+    #[test]
+    fn final_json_header_map_sets_json_content_type_length_and_policy_headers() {
+        let policy = compile_headers(&[
+            h("x-frame-options", "DENY"),
+            h("content-type", "text/plain"),
+        ])
+        .unwrap();
+        let id_name = HeaderName::from_static("x-request-id");
+        let map = final_json_header_map(&policy, &id_name, b"req-42", 200, 123).unwrap();
+        assert_eq!(map.get("content-type").unwrap(), "application/json");
+        assert_eq!(map.get("x-frame-options").unwrap(), "DENY");
+        assert_eq!(map.get("x-request-id").unwrap(), "req-42");
+        assert_eq!(map.get("content-length").unwrap(), "123");
+
+        let no_body = final_json_header_map(&policy, &id_name, b"", 204, 0).unwrap();
+        assert!(no_body.get("content-length").is_none());
+        assert_eq!(no_body.get("x-request-id").unwrap(), "");
     }
 }

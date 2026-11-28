@@ -588,9 +588,15 @@ class NativeLane:
             self._broken(run)
             return
         if response is None:
-            self._track(self._translate(run, error), run.ctx)
+            if threading.get_ident() != self.thread:
+                self.loop.call_soon_threadsafe(self._track_translate, run, error)
+            else:
+                self._track(self._translate(run, error), run.ctx)
         else:
             self._respond(run, response)
+
+    def _track_translate(self, run: Run, error: Exception) -> None:
+        self._track(self._translate(run, error), run.ctx)
 
     async def _translate(self, run: Run, error: Exception) -> None:
         await self._answer(run, self.pipeline.native_failure(error, run.rid))

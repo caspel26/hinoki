@@ -175,6 +175,15 @@ impl Shape {
                 0 => declared_length(&answer.headers).ok().flatten().unwrap_or(0),
                 size => size,
             }),
+            Delivery::Fast(answer) => Self::Whole(match answer.body.len() as u64 {
+                0 => answer
+                    .headers
+                    .get(hyper::header::CONTENT_LENGTH)
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .unwrap_or(0),
+                size => size,
+            }),
             Delivery::Streamed(streamed) => {
                 Self::Live(declared_length(&streamed.headers).ok().flatten())
             }

@@ -93,10 +93,20 @@ pub struct FileAnswer {
     pub file: FileBody,
 }
 
+/// A complete answer with pre-validated hyper headers, bypassing header
+/// re-parsing on the hot path.
+#[derive(Debug)]
+pub struct FastAnswer {
+    pub status: u16,
+    pub headers: hyper::HeaderMap,
+    pub body: Bytes,
+}
+
 /// What a backend gives back for one request.
 #[derive(Debug)]
 pub enum Delivery {
     Whole(Answer),
+    Fast(FastAnswer),
     Streamed(Streamed),
     File(FileAnswer),
     /// Switch the connection to WebSocket: a `101`, then the session.
@@ -107,6 +117,7 @@ impl Delivery {
     pub fn status(&self) -> u16 {
         match self {
             Self::Whole(answer) => answer.status,
+            Self::Fast(answer) => answer.status,
             Self::Streamed(streamed) => streamed.status,
             Self::File(file) => file.status,
             Self::Upgrade(_) => 101,
