@@ -1807,24 +1807,30 @@ class Model:
             return None
 
     @classmethod
+    def _has_stock_query_methods(cls) -> bool:
+        if len(cls.__mro__) == len(Model.__mro__) + 1 and cls.__mro__[1] is Model:
+            return "all" not in cls.__dict__ and "filter" not in cls.__dict__
+        return getattr(cls.all, "__func__", None) is getattr(
+            Model.all, "__func__", None
+        ) and getattr(cls.filter, "__func__", None) is getattr(
+            Model.filter, "__func__", None
+        )
+
+    @classmethod
     def _simple_get_conditions(cls, conditions: dict[str, Any]) -> bool:
-        if (
-            cls.__abstract__
-            or getattr(cls.all, "__func__", None)
-            is not getattr(Model.all, "__func__", None)
-            or getattr(cls.filter, "__func__", None)
-            is not getattr(Model.filter, "__func__", None)
-        ):
+        if cls.__abstract__ or not cls._has_stock_query_methods():
             return False
         columns = cls.__columns__
         field_types = cls.__field_types__
-        return all(
-            value is not None
-            and "__" not in key
-            and key in columns
-            and field_types[key].kind != "decimal"
-            for key, value in conditions.items()
-        )
+        for key, value in conditions.items():
+            if (
+                value is None
+                or "__" in key
+                or key not in columns
+                or field_types[key].kind == "decimal"
+            ):
+                return False
+        return True
 
     @classmethod
     async def aget_as[S: Schema](cls, schema: type[S], **conditions: Any) -> S:

@@ -310,14 +310,13 @@ class QuerySet[M: Model]:
         loading: Any = _UNSET,
         implicit_filter_count: Any = _UNSET,
     ) -> QuerySet[M]:
-        query = QuerySet(
-            self.model,
-            self.filters if filters is _UNSET else filters,
-            self.order if order is _UNSET else order,
-            self.limit_to if limit_to is _UNSET else limit_to,
-            self.offset_by if offset_by is _UNSET else offset_by,
-            self.loading if loading is _UNSET else loading,
-        )
+        query = object.__new__(QuerySet)
+        query.model = self.model
+        query.filters = self.filters if filters is _UNSET else filters
+        query.order = self.order if order is _UNSET else order
+        query.limit_to = self.limit_to if limit_to is _UNSET else limit_to
+        query.offset_by = self.offset_by if offset_by is _UNSET else offset_by
+        query.loading = self.loading if loading is _UNSET else loading
         query.implicit_filter_count = (
             self.implicit_filter_count
             if implicit_filter_count is _UNSET
@@ -383,18 +382,46 @@ class QuerySet[M: Model]:
             )
         name, op, values = condition(relation.model, rest, value)
         added = (f"{ALIAS_PREFIX}{relation_name}.{name}", op, values)
-        joined = tuple(dict.fromkeys((*self.loading.joined, relation_name)))
+        cur = self.loading
+        joined = (
+            (relation_name,)
+            if not cur.joined
+            else cur.joined
+            if relation_name in cur.joined
+            else (*cur.joined, relation_name)
+        )
         return self.derive(
             filters=(*self.filters, added),
-            loading=dataclasses.replace(self.loading, joined=joined),
+            loading=Loading(joined, cur.selected, cur.prefetched, cur.scoped),
         )
 
     def select_related(self, *names: str) -> QuerySet[M]:
         """Load forward relations in the same query (one JOIN each)."""
+        relations = self.model.__relations__
         for name in names:
-            self.forward(name)
-        merged = tuple(dict.fromkeys((*self.loading.selected, *names)))
-        return self.derive(loading=dataclasses.replace(self.loading, selected=merged))
+            rel = relations.get(name)
+            if rel is None or not rel.forward:
+                self.forward(name)
+        cur = self.loading
+        merged = (
+            names
+            if not cur.selected and len(names) <= 1
+            else tuple(dict.fromkeys((*cur.selected, *names)))
+        )
+        return self.derive(
+            loading=Loading(cur.joined, merged, cur.prefetched, cur.scoped)
+        )
+
+    def _validate_scoped_prefetches(self, scoped: dict[str, QuerySet[Any]]) -> None:
+        links = self.model.__links__
+        for name, query in scoped.items():
+            if name not in links:
+                raise FieldError(
+                    f"{self.model.__name__} has no many-to-many relation {name!r}"
+                )
+            if not isinstance(query, QuerySet):
+                raise FieldError(f"prefetch_related({name}=...) takes a query")
+            links[name].check_within(query)
 
     def prefetch_related(self, *names: str, **scoped: QuerySet[Any]) -> QuerySet[M]:
         """Load relations with bounded queries per owner chunk.
@@ -402,23 +429,27 @@ class QuerySet[M: Model]:
         ``prefetch_related(tags=Tag.filter(...))`` loads only matching targets
         for a many-to-many relation.
         """
+        links = self.model.__links__
+        relations = self.model.__relations__
         for name in names:
-            if name not in self.model.__links__:
+            if name not in links and name not in relations:
                 self.relation(name)
-        for name, query in scoped.items():
-            if name not in self.model.__links__:
-                raise FieldError(
-                    f"{self.model.__name__} has no many-to-many relation {name!r}"
-                )
-            if not isinstance(query, QuerySet):
-                raise FieldError(f"prefetch_related({name}=...) takes a query")
-            self.model.__links__[name].check_within(query)
-        merged = tuple(dict.fromkeys((*self.loading.prefetched, *names, *scoped)))
-        kept = tuple(item for item in self.loading.scoped if item[0] not in scoped)
+        cur = self.loading
+        if not scoped:
+            pair_distinct = len(names) == len(set(names))
+            merged = (
+                names
+                if not cur.prefetched and pair_distinct
+                else tuple(dict.fromkeys((*cur.prefetched, *names)))
+            )
+            return self.derive(
+                loading=Loading(cur.joined, cur.selected, merged, cur.scoped)
+            )
+        self._validate_scoped_prefetches(scoped)
+        merged = tuple(dict.fromkeys((*cur.prefetched, *names, *scoped)))
+        kept = tuple(item for item in cur.scoped if item[0] not in scoped)
         extra = (*kept, *scoped.items())
-        return self.derive(
-            loading=dataclasses.replace(self.loading, prefetched=merged, scoped=extra)
-        )
+        return self.derive(loading=Loading(cur.joined, cur.selected, merged, extra))
 
     def relation(self, name: str) -> Relation:
         relation = self.model.__relations__.get(name)
@@ -503,7 +534,7 @@ class QuerySet[M: Model]:
             or not _valid_bound_int(offset_by)
         ):
             return None
-        sig = _filter_signature(self.filters)
+        sig = () if not self.filters else _filter_signature(self.filters)
         if sig is None:
             return None
         resolved_order = self.order if order is None else order

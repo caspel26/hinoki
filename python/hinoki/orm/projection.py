@@ -8,6 +8,7 @@ import inspect
 import types
 import weakref
 from collections.abc import Callable, Iterable, Iterator
+from types import MappingProxyType
 from typing import Any, SupportsIndex, cast, overload
 
 from hinoki import core
@@ -32,6 +33,8 @@ type _PlanEntry = tuple[
     tuple[type[Schema], ...],
     tuple[type[Model], ...],
     bool,
+    tuple[MappingProxyType[str, Any], ...],
+    tuple[MappingProxyType[str, Any], ...],
 ]
 _PLAN_CACHE: weakref.WeakKeyDictionary[
     type[Schema],
@@ -784,8 +787,10 @@ def _build_projection_plan(
 
 
 _STOCK_FROM_ROW = getattr(Model.from_row, "__func__", None)
+_STOCK_FROM_ROW_DESC = Model.__dict__["from_row"]
 _STOCK_SCHEMA_DUMP = Schema.dump
 _STOCK_SCHEMA_FROM_MODEL = getattr(Schema.from_model, "__func__", None)
+_STOCK_SCHEMA_FROM_MODEL_DESC = Schema.__dict__["from_model"]
 
 
 def _schema_hooks_stock(schema: type[Schema]) -> bool:
@@ -796,6 +801,40 @@ def _schema_hooks_stock(schema: type[Schema]) -> bool:
         and not schema.__normalizers__
         and not schema.__computed_specs__
     )
+
+
+def _subclass_dicts(
+    classes: tuple[type[Any], ...], root: type[Any]
+) -> tuple[MappingProxyType[str, Any], ...]:
+    seen: list[MappingProxyType[str, Any]] = []
+    for target in classes:
+        for cls in target.__mro__:
+            if cls is root or cls is object:
+                break
+            mapping = cls.__dict__
+            if mapping not in seen:
+                seen.append(mapping)
+    return tuple(seen)
+
+
+def _stock_hooks_intact(
+    schemas: tuple[type[Schema], ...],
+    schema_dicts: tuple[MappingProxyType[str, Any], ...],
+    model_dicts: tuple[MappingProxyType[str, Any], ...],
+) -> bool:
+    if (
+        Schema.__dict__["dump"] is not _STOCK_SCHEMA_DUMP
+        or Schema.__dict__["from_model"] is not _STOCK_SCHEMA_FROM_MODEL_DESC
+        or Model.__dict__["from_row"] is not _STOCK_FROM_ROW_DESC
+    ):
+        return False
+    for s in schemas:
+        if s.__checks__ or s.__normalizers__ or s.__computed_specs__:
+            return False
+    for mapping in schema_dicts:
+        if "dump" in mapping or "from_model" in mapping:
+            return False
+    return all("from_row" not in mapping for mapping in model_dicts)
 
 
 def _schema_guards(schema: type[Schema]) -> tuple[type[Schema], ...]:
@@ -857,16 +896,29 @@ def _prefetch_target_model(query: QuerySet[Any], name: str) -> type[Model] | Non
     return None
 
 
+def _plan_cache_hit(
+    entry: _PlanEntry,
+    model: type[Model],
+    schema: type[Schema],
+) -> tuple[bool, core._RowPlan | None]:
+    plan, guard_schemas, guard_models, was_stock, schema_dicts, model_dicts = entry
+    if was_stock:
+        if _stock_hooks_intact(guard_schemas, schema_dicts, model_dicts):
+            return True, plan
+        return False, None
+    if getattr(model.from_row, "__func__", None) is _STOCK_FROM_ROW and not (
+        _all_hooks_stock(schema, guard_schemas, guard_models)
+    ):
+        return True, plan
+    return False, None
+
+
 def compile_projection_plan(
     query: QuerySet[Any], schema: type[Schema], dialect: str = "sqlite"
 ) -> core._RowPlan | None:
     """Build or fetch a cached Rust ``_RowPlan`` for ``(query, schema)``, or
     ``None`` to fall back to normal Python model hydration."""
-    if (
-        not query.uses_stock_builders()
-        or query.loading.scoped
-        or getattr(query.model.from_row, "__func__", None) is not _STOCK_FROM_ROW
-    ):
+    if not query.uses_stock_builders() or query.loading.scoped:
         return None
     selected = query.loading.selected
     prefetched = query.loading.prefetched
@@ -879,19 +931,33 @@ def compile_projection_plan(
     )
     entry = _PLAN_FAST_CACHE.get(fast_key)
     if entry is not None:
-        plan, guard_schemas, guard_models, was_stock = entry
-        if _all_hooks_stock(schema, guard_schemas, guard_models) == was_stock:
-            return plan
+        hit, cached_plan = _plan_cache_hit(entry, query.model, schema)
+        if hit:
+            return cached_plan
+    if getattr(query.model.from_row, "__func__", None) is not _STOCK_FROM_ROW:
+        return None
     guard_schemas, guard_models = _plan_guards(query, schema)
     was_stock = _all_hooks_stock(schema, guard_schemas, guard_models)
     plan = _build_projection_plan(query, schema, dialect) if was_stock else None
+    all_schemas = (schema, *guard_schemas)
+    schema_dicts = _subclass_dicts(all_schemas, Schema) if was_stock else ()
+    model_dicts = (
+        _subclass_dicts((query.model, *guard_models), Model) if was_stock else ()
+    )
     cache_key: _PlanKey = (selected, prefetched, dialect)
     _plan_cache_put(
         schema,
         query.model,
         cache_key,
         fast_key,
-        (plan, guard_schemas, guard_models, was_stock),
+        (
+            plan,
+            all_schemas if was_stock else guard_schemas,
+            guard_models,
+            was_stock,
+            schema_dicts,
+            model_dicts,
+        ),
     )
     return plan
 
@@ -983,14 +1049,14 @@ def compile_model_projection_plan(
 ) -> core._RowPlan | None:
     """Build or fetch a cached Rust ``_RowPlan`` for a plain ``(model, schema)``
     lookup without allocating an intermediate ``QuerySet`` on cache hits."""
-    if getattr(model.from_row, "__func__", None) is not _STOCK_FROM_ROW:
-        return None
     fast_key: _PlanFastKey = (id(schema), id(model), (), (), dialect)
     entry = _PLAN_FAST_CACHE.get(fast_key)
     if entry is not None:
-        plan, guard_schemas, guard_models, was_stock = entry
-        if _all_hooks_stock(schema, guard_schemas, guard_models) == was_stock:
-            return plan
+        hit, cached_plan = _plan_cache_hit(entry, model, schema)
+        if hit:
+            return cached_plan
+    if getattr(model.from_row, "__func__", None) is not _STOCK_FROM_ROW:
+        return None
     return compile_projection_plan(QuerySet(model), schema, dialect)
 
 
@@ -1075,7 +1141,7 @@ async def project_one[S: Schema](
             if compiled is not None
             else query.limit(2).compile(dialect=database.dialect)
         )
-        result = await fetch_one(sql, list(params), plan)
+        result = await fetch_one(sql, params, plan)
         if result is None:
             if allow_none:
                 return None
