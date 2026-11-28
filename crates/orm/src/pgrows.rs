@@ -31,6 +31,64 @@ pub enum PgCell<'a> {
     Numeric(String),
 }
 
+struct RawLen(usize);
+
+impl<'a> FromSql<'a> for RawLen {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        Ok(Self(raw.len()))
+    }
+
+    fn accepts(_ty: &Type) -> bool {
+        true
+    }
+}
+
+/// Borrowed handle to one row in a [`PgRows`] batch, caching its column metadata.
+#[derive(Clone, Copy)]
+pub struct PgRowRef<'a> {
+    row: &'a PgRow,
+    columns: &'a [tokio_postgres::Column],
+}
+
+impl<'a> PgRowRef<'a> {
+    /// Borrow or stack-decode one cell directly from the Postgres wire buffer.
+    pub fn cell(self, col_idx: usize) -> Option<PgCell<'a>> {
+        let col = self.columns.get(col_idx)?;
+        decode_pg_cell(self.row, col_idx, col.type_())
+    }
+
+    /// Read a key column as a [`Canon`] without allocating a `Value`.
+    pub fn canon_key(self, col_idx: usize, kind: KeyKind) -> Option<Canon> {
+        match (kind, self.cell(col_idx)?) {
+            (KeyKind::Int, PgCell::Int(n)) => Some(Canon::Int(n)),
+            (KeyKind::Text { .. }, PgCell::Text(s)) => Some(Canon::Text(s.to_owned())),
+            (KeyKind::Uuid, PgCell::Uuid(id)) => Some(Canon::Uuid(id)),
+            _ => None,
+        }
+    }
+
+    /// Estimated JSON byte length of a text/decimal cell without UTF-8 validation.
+    pub fn text_len(self, col_idx: usize) -> usize {
+        self.row
+            .try_get::<_, Option<RawLen>>(col_idx)
+            .ok()
+            .flatten()
+            .map_or(0, |r| r.0.saturating_add(2))
+    }
+
+    /// Estimated base64 JSON byte length of a `bytea` cell (0 if null).
+    pub fn bytes_len(self, col_idx: usize) -> usize {
+        self.row
+            .try_get::<_, Option<RawLen>>(col_idx)
+            .ok()
+            .flatten()
+            .map_or(0, |r| r.0.div_ceil(3).saturating_mul(4).saturating_add(2))
+    }
+}
+
 /// Raw PostgreSQL rows plus cached column types.
 #[derive(Debug, Default)]
 pub struct PgRows {
@@ -72,21 +130,31 @@ impl PgRows {
         self.rows.first().map_or(0, |r| r.columns().len())
     }
 
+    /// Borrow one row by index.
+    pub fn row(&self, row_idx: usize) -> Option<PgRowRef<'_>> {
+        let row = self.rows.get(row_idx)?;
+        Some(PgRowRef {
+            row,
+            columns: row.columns(),
+        })
+    }
+
+    /// Iterate over all rows as borrowed [`PgRowRef`] handles.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = PgRowRef<'_>> {
+        self.rows.iter().map(|row| PgRowRef {
+            row,
+            columns: row.columns(),
+        })
+    }
+
     /// Borrow or stack-decode one cell directly from the Postgres wire buffer.
     pub fn cell(&self, row_idx: usize, col_idx: usize) -> Option<PgCell<'_>> {
-        let row = self.rows.get(row_idx)?;
-        let col = row.columns().get(col_idx)?;
-        decode_pg_cell(row, col_idx, col.type_())
+        self.row(row_idx)?.cell(col_idx)
     }
 
     /// Read a key column as a [`Canon`] without allocating a `Value`.
     pub fn canon_key(&self, row_idx: usize, col_idx: usize, kind: KeyKind) -> Option<Canon> {
-        match (kind, self.cell(row_idx, col_idx)?) {
-            (KeyKind::Int, PgCell::Int(n)) => Some(Canon::Int(n)),
-            (KeyKind::Text { .. }, PgCell::Text(s)) => Some(Canon::Text(s.to_owned())),
-            (KeyKind::Uuid, PgCell::Uuid(id)) => Some(Canon::Uuid(id)),
-            _ => None,
-        }
+        self.row(row_idx)?.canon_key(col_idx, kind)
     }
 
     /// Read a key column as an owned [`Value`] (for binding into a prefetch `IN (...)`).

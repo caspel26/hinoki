@@ -15,7 +15,7 @@ mod value;
 
 pub use database::{Database, PageQueries, PgSession, Row, RowSet, Transaction};
 pub use error::{DbError, ErrorKind};
-pub use pgrows::{PgCell, PgRows, RawRows};
+pub use pgrows::{PgCell, PgRowRef, PgRows, RawRows};
 pub use value::{
     parse_timestamp, timestamp_iso, timestamp_storage_text, write_timestamp_iso, Value,
 };
